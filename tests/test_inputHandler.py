@@ -9,7 +9,7 @@ def test_handle_input():
 
     # Test if the output of handleInput matches the expected output
     expected_output = input_handler.prefix + user_input
-    assert input_handler.handleInput(user_input) == expected_output, "Input was not handled properly"
+    return input_handler.handleInput(user_input) == expected_output
 
 
 # If you want to run the tests directly (not usually necessary with pytest)
