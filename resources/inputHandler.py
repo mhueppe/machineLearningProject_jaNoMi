@@ -9,7 +9,7 @@ class InputHandler:
     """
 
     def __init__(self):
-        pass
+        self.prefix = "Received: "
 
     def handleInput(self, userInput: str) -> str:
         """
@@ -17,4 +17,4 @@ class InputHandler:
         :param userInput:
         :return:
         """
-        return f"Received: {userInput}"
+        return f"{self.prefix}{userInput}"
