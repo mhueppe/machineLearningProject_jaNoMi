@@ -5,7 +5,7 @@ from PySide2.QtGui import QIcon
 
 # local
 from gui.interface import Interface
-from resources.inputHandler import InputHandler
+from resources.model import JaNoMiModel
 # external
 from PySide2.QtWidgets import QApplication, QMainWindow
 import sys
@@ -20,7 +20,7 @@ class MainApplication(QMainWindow):
     def __init__(self):
         super().__init__()
         self.interface = Interface(cb_inputEnter=self._gui_inputerEnter)  # Create an instance of Interface
-        self.inputHandler = InputHandler()
+        self.inputHandler = JaNoMiModel()
         self.setCentralWidget(self.interface)  # Set Interface as the main widget
         self.initUI()
         self.setWindowTitle("JaNoMi Machine Learning Project")
@@ -35,7 +35,7 @@ class MainApplication(QMainWindow):
         Send the input of the gui to the input handler
         :return:
         """
-        output = self.inputHandler.handleInput(userInput)
+        output = self.inputHandler.generateOutput(userInput)
         self.interface.handleOutput(output)
 
 
