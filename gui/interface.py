@@ -1,0 +1,57 @@
+# author: Michael Hüppe
+# date: 28.10.2024
+# project: /interface.py
+# built-in
+from typing import Callable
+
+from PySide2 import QtCore
+
+# local 
+from .src.interface import Ui_Form
+
+# external
+from PySide2.QtWidgets import QWidget
+
+
+class Interface(QWidget, Ui_Form):
+    """
+    Implementation of a simple GUI interface to input text and receive some kind of output.
+    """
+    output_send = QtCore.Signal(str)
+
+    def __init__(self, cb_inputEnter: Callable[[str], None] = lambda userInput: None):
+        super().__init__()
+        self._cb_inputEnter = cb_inputEnter
+        self.setupUi(self)
+        self.setup_connections()
+
+    def setupUi(self, Form) -> None:
+        # Initialize the form with the interface layout
+        super().setupUi(Form)
+
+    def setup_connections(self) -> None:
+        self.pushButton_enter.clicked.connect(
+            self._pushButton_enter_clicked
+        )
+
+        self.output_send.connect(
+            self._output_send_handle
+        )
+
+    def _pushButton_enter_clicked(self) -> None:
+        """
+        Send the current input to the input handler
+        :return:
+        """
+        self._cb_inputEnter(self.lineEdit_input.text())
+
+    def handleOutput(self, modelOutput: str) -> None:
+        """
+        Handle the output
+        :param modelOutput: output of the model
+        :return:
+        """
+        self.output_send.emit(modelOutput)
+
+    def _output_send_handle(self, modelOutput: str) -> None:
+        self.textBrowser_output.setText(modelOutput)
