@@ -9,7 +9,7 @@ from resources.model import JaNoMiModel
 # external
 from PySide2.QtWidgets import QApplication, QMainWindow
 import sys
-
+from resources.model_types import ModelTypes
 
 class MainApplication(QMainWindow):
     """
@@ -30,12 +30,12 @@ class MainApplication(QMainWindow):
         self.setWindowTitle("Main Application")
         self.resize(800, 600)
 
-    def _gui_inputerEnter(self, userInput: str) -> None:
+    def _gui_inputerEnter(self, userInput: str, modelType: ModelTypes) -> None:
         """
         Send the input of the gui to the input handler
         :return:
         """
-        output = self.inputHandler.generateOutput(userInput)
+        output = self.inputHandler.generateOutput(userInput, modelType)
         self.interface.handleOutput(output)
 
 
@@ -68,6 +68,7 @@ def main():
     app.setStyleSheet(stylesheet)
     # Set the application icon (modify the path to your icon file)
     icon_path = "gui/media/UHH_Universitaet_Hamburg_Logo.png"  # Provide the correct path to your PNG image
+    app.setStyle("Fusion")
     app.setWindowIcon(QIcon(icon_path))
     main_window = MainApplication()
     main_window.show()

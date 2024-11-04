@@ -11,7 +11,7 @@ from .src.interface import Ui_Form
 
 # external
 from PySide2.QtWidgets import QWidget
-
+from resources.model_types import ModelTypes
 
 class Interface(QWidget, Ui_Form):
     """
@@ -19,9 +19,9 @@ class Interface(QWidget, Ui_Form):
     """
     output_send = QtCore.Signal(str)
 
-    def __init__(self, cb_inputEnter: Callable[[str], None] = lambda userInput: None):
+    def __init__(self, cb_inputEnter: Callable[[str, ModelTypes], None] = lambda userInput: None):
         super().__init__()
-        self._cb_inputEnter: Callable[[str], None] = cb_inputEnter
+        self._cb_inputEnter: Callable[[str, ModelTypes], None] = cb_inputEnter
         self.setupUi(self)
         self.setup_connections()
 
@@ -33,6 +33,7 @@ class Interface(QWidget, Ui_Form):
         """
         # Initialize the form with the interface layout
         super().setupUi(Form)
+        self.comboBox_modelType.addItems(ModelTypes._member_names_)
 
     def setup_connections(self) -> None:
         """
@@ -52,7 +53,8 @@ class Interface(QWidget, Ui_Form):
         Send the current input to the input handler
         :return:
         """
-        self._cb_inputEnter(self.lineEdit_input.text())
+        modelType = ModelTypes[self.comboBox_modelType.currentText()]
+        self._cb_inputEnter(self.textEdit_abstract.toPlainText(), modelType)
 
     def handleOutput(self, modelOutput: str) -> None:
         """
@@ -68,4 +70,4 @@ class Interface(QWidget, Ui_Form):
         :param modelOutput: Generated output
         :return:
         """
-        self.textBrowser_output.setText(modelOutput)
+        self.label_title.setText(modelOutput)
