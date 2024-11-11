@@ -8,6 +8,7 @@ import re
 from typing import Tuple
 from tqdm.auto import tqdm
 from IPython.core.display import HTML
+from .dataPreprocessing import preprocessing
 
 class GenerateSummary:
     def __init__(self,
@@ -26,7 +27,7 @@ class GenerateSummary:
         self.mask = tf.scatter_nd(
             indices=[[0], [1]],
             updates=[-float("inf"), -float("inf")],
-            shape=(vocab_size,)
+            shape=(self.vocab_size,)
         )
 
     @tf.function  # Transforming the function into an optimized computational graph to accelerate prediction
@@ -54,24 +55,6 @@ class GenerateSummary:
         return output
 
 
-def vectorize_text(contexts, targets,
-                   context_tokenizer: tf.keras.layers.TextVectorization,
-                   target_tokenizer: tf.keras.layers.TextVectorization) \
-        -> Tuple[Tuple[np.ndarray, np.ndarray], np.ndarray]:
-    """
-    Vectorize the texts
-    :param contexts: Contexts to vectorize
-    :param targets: Targets to vectorize
-    :param context_tokenizer: Tokenizer to use for contexts
-    :param target_tokenizer: Tokenizer to use for targets
-    :return:
-    """
-    contexts = context_tokenizer(contexts)
-    targets = target_tokenizer(targets)
-    targets_in = targets[:-1]
-    targets_out = targets[1:]
-    return (contexts, targets_in), targets_out
-
 
 # Function to generate summaries and display them in HTML format
 
@@ -82,7 +65,7 @@ def normalize_target(text):
     return text
 
 
-def prepare_for_evaluation(dataset):
+def prepare_for_evaluation(dataset, generate_summary):
     predictions, references = [], []
     for sample in tqdm(dataset):
         prediction = generate_summary.summarize(sample["document"])
