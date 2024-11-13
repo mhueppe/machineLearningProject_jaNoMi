@@ -23,7 +23,7 @@ class MainApplication(QMainWindow):
         self.inputHandler = JaNoMiModel()
         self.setCentralWidget(self.interface)  # Set Interface as the main widget
         self.initUI()
-        self.setWindowTitle("JaNoMi Machine Learning Project")
+        self.setWindowTitle("Headliner")
 
     def initUI(self):
         """Initialize the main application UI settings."""
