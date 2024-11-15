@@ -6,7 +6,7 @@ from typing import List, Tuple
 import numpy as np
 import random
 from typing import List, Tuple
-
+import pandas as pd
 
 def readingDataACL(path: str) -> Tuple[List[str], List[str]]:
     """
@@ -17,6 +17,18 @@ def readingDataACL(path: str) -> Tuple[List[str], List[str]]:
     abstractTitles = open(path, "r").read()
     papers = [paper.split("\n") for paper in abstractTitles.split("\n\n")]
     return zip(*papers)
+
+
+def readingDataArxiv(path: str) -> Tuple[List[str], List[str]]:
+    """
+    Read the Arxiv data
+    :param path: File path to read the data from
+    :return: titles, abstracts NOTE: corresponds to y, x for training
+    """
+    df = pd.read_csv(path)
+    abstracts = df["abstract"].values
+    titles = df["title"].values
+    return titles, abstracts
 
 
 def filter_byLength(abstracts: List[str], titles: List[str],
