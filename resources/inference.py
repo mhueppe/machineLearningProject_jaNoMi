@@ -38,7 +38,7 @@ class GenerateSummary:
         next_token = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
         return next_token[None, :]
 
-    def summarize(self, text: str):
+    def summarize(self, text: str) -> str:
         encoder_input = self.context_tokenizer([text])
         output = tf.constant(self.token_start, shape=(1, 1))
 
