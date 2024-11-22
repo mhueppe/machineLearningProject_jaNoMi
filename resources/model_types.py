@@ -9,3 +9,4 @@ class ModelTypes(Enum):
     TfIdf = 0
     Rake = 1
     KeyBert = 2
+    Headliner = 3
