@@ -6,8 +6,8 @@ import json
 import os
 from typing import List
 
-from utils.util_readingData import readingDataACL
-from .createModel import createModel
+from training import load_data
+from .createModel import createModel, init_tokenizers
 from .inference import GenerateSummary
 # local
 from .model_types import ModelTypes
@@ -18,9 +18,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import nltk
 from rake_nltk import Rake
 from keybert import KeyBERT
-import tensorflow as tf
-from resources.dataPreprocessing import preprocessing, vectorize_text
-from .transformer import Transformer
 
 
 class JaNoMiModel:
@@ -35,49 +32,13 @@ class JaNoMiModel:
         self._vectorizer = TfidfVectorizer(max_features=10, stop_words='english')  # Adjust max_features as needed
         self._rake = Rake(max_length=3)
         self._kw_model = KeyBERT()
-        # TODO load model weights
+
+        # TODO: softcode? outsource data loading?
+        titles, abstracts = load_data()
+        self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts)
         self._headliner = createModel()
+        # TODO load model weights
         #self._headliner = tf.keras.models.load_weights(os.path.join("trainedModels","model.weights.h5"))
-
-        with open(os.path.join("resources","params.json")) as f:
-            self._params = json.load(f)
-
-        self._context_tokenizer, self._target_tokenizer = self.init_tokenizers()
-
-        vocab_size = self._params["vocab_size"]
-
-
-    def init_tokenizers(self):
-        params = self._params
-
-        titles, abstracts = readingDataACL("dataAnalysis/data/acl_titles_and_abstracts.txt")
-        contexts = tf.data.Dataset.from_tensor_slices(list(abstracts))
-        targets = tf.data.Dataset.from_tensor_slices(list(titles))
-        data_adapt = contexts.concatenate(targets).batch(params["batch_size"])
-
-        unique_words = set(titles + abstracts)
-        vocab_size = int(len(unique_words) * 1.2)
-
-        context_tokenizer = tf.keras.layers.TextVectorization(
-            max_tokens=vocab_size,
-            standardize=preprocessing,
-            output_sequence_length=params["context_max_length"]
-        )
-        context_tokenizer.adapt(data_adapt)
-        vocab = np.array(context_tokenizer.get_vocabulary())
-
-        target_tokenizer = tf.keras.layers.TextVectorization(
-            max_tokens=context_tokenizer.vocabulary_size(),
-            standardize=preprocessing,
-            output_sequence_length=params["target_max_length"] + 1,
-            vocabulary=vocab
-        )
-
-        return context_tokenizer, target_tokenizer
-
-    def vectorize_text_with_tokenizer(self, contexts, targets):
-        return vectorize_text(contexts, targets,
-                              self._context_tokenizer, self._target_tokenizer)
 
     @staticmethod
     def encodeInput(userInput: str) -> List[str]:
@@ -104,7 +65,6 @@ class JaNoMiModel:
         :param modelType: Model to use for generating output
         :return:
         """
-
         if modelType == ModelTypes.TfIdf:
             output = self.generateOutput_tfidf(userInput)
         elif modelType == ModelTypes.Rake:
@@ -114,6 +74,7 @@ class JaNoMiModel:
         else:
             output = self.generateOutput_keyBert(userInput)
 
+        # TODO: makes sense for TfIdf, but should this be changed for headliner?
         return ", ".join(output)
 
     def generateOutput_tfidf(self, userInput: str):
@@ -157,14 +118,14 @@ class JaNoMiModel:
 
     def generateOutput_headliner(self, userInput: str):
         """
-        predict output based on userInput
-        :param userInput: Input of the user
-        :return:
+        predict output based on our own trained model
+        :param userInput: abstract put in by the user
+        :return: title predicted by the model
         """
-        params = self._params
-        vocab = np.array(self._context_tokenizer.get_vocabulary())
+        with open(os.path.join("resources","params.json")) as f:
+            params = json.load(f)
         summary = GenerateSummary(self._headliner,
-                                  vocab,
+                                  np.array(self._context_tokenizer.get_vocabulary()),
                                   params["vocab_size"],
                                   self._context_tokenizer,
                                   params["target_max_length"])
