@@ -41,3 +41,56 @@ class PositionalEmbedding(tf.keras.layers.Layer):
         pos_encoding = tf.cast(angle_rads, tf.float32)
 
         return pos_encoding
+
+@register_keras_serializable()
+class RelativePositionalEncoding(tf.keras.layers.Layer):
+    def __init__(self, max_distance, embedding_dim):
+        super().__init__()
+        self.max_distance = max_distance
+        self.embedding_dim = embedding_dim
+        self.relative_embedding = tf.keras.layers.Embedding(
+            input_dim=2 * max_distance + 1,
+            output_dim=embedding_dim
+        )
+
+    def call(self, query, key):
+        seq_len = tf.shape(query)[1]
+        indices = tf.range(seq_len)
+        rel_pos = indices[:, None] - indices[None, :]
+        clipped_rel_pos = tf.clip_by_value(rel_pos, -self.max_distance, self.max_distance) + self.max_distance
+        rel_pos_embed = self.relative_embedding(clipped_rel_pos)
+        return rel_pos_embed
+
+@register_keras_serializable()
+class SegmentEncoding(tf.keras.layers.Layer):
+    def __init__(self, num_segments, embedding_dim):
+        super().__init__()
+        self.segment_embedding = tf.keras.layers.Embedding(
+            input_dim=num_segments,
+            output_dim=embedding_dim
+        )
+
+    def call(self, x, segment_ids):
+        # Add segment embedding to the input embeddings
+        segment_embed = self.segment_embedding(segment_ids)
+        return x + segment_embed
+
+@register_keras_serializable()
+class RotaryPositionalEmbedding(tf.keras.layers.Layer):
+    def __init__(self, embedding_dim):
+        super().__init__()
+        self.embedding_dim = embedding_dim
+
+    def build(self, input_shape):
+        seq_len = input_shape[1]
+        inv_freq = 1.0 / (10000 ** (tf.range(0, self.embedding_dim, 2.0) / self.embedding_dim))
+        positions = tf.range(seq_len, dtype=tf.float32)[:, None]
+        angles = positions * inv_freq
+        self.sin = tf.sin(angles)
+        self.cos = tf.cos(angles)
+
+    def call(self, x):
+        q, k = tf.split(x, 2, axis=-1)
+        q_rot = q * self.cos + tf.roll(q, shift=1, axis=-1) * self.sin
+        k_rot = k * self.cos + tf.roll(k, shift=1, axis=-1) * self.sin
+        return tf.concat([q_rot, k_rot], axis=-1)
