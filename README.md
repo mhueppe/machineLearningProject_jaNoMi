@@ -24,7 +24,8 @@ HEADLINER is a machine learning project aimed at developing a scientific title g
 ### Objectives
 
 1. **Data Collection**: Gather a comprehensive dataset of scientific abstracts and their corresponding titles. 
-    For now we will start out with the [ACL Title and Abstract Dataset](https://paperswithcode.com/dataset/acl-title-and-abstract-dataset).
+    - For now we will start out with the [ACL Title and Abstract Dataset](https://paperswithcode.com/dataset/acl-title-and-abstract-dataset).
+    - We are also looking at a dataset of [ArXiv-Papers](https://huggingface.co/datasets/CShorten/ML-ArXiv-Papers)
 2. **Model Training**: Train a transformer-based language model on the collected dataset.
 3. **Title Generation**: Provide the user with an interface to input abstracts and generate appropriate titles using the trained model.
 4. **Evaluation**: Implement evaluation metrics to assess the quality and relevance of the generated titles.
