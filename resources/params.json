@@ -1,12 +1,12 @@
 {
-  "batch_size": 256,
-  "buffer_size": 1024,
-  "SEED": 123,
-  "embedding_dim": 256,
-  "context_min_length": 50,
-  "context_max_length": 180,
-  "target_min_length": 0,
-  "target_max_length": 20,
-  "epochs": 20,
-  "vocab_size": 22506
+    "batch_size": 256,
+    "buffer_size": 1024,
+    "SEED": 123,
+    "embedding_dim": 256,
+    "context_min_length": 50,
+    "context_max_length": 180,
+    "target_min_length": 0,
+    "target_max_length": 20,
+    "epochs": 20,
+    "vocab_size": 25953
 }
