@@ -4,6 +4,8 @@
 from .model import JaNoMiModel
 import numpy as np
 
+import bert_score
+
 
 def calculate_perplexity(userInput: str, model: JaNoMiModel):
     """
@@ -23,3 +25,10 @@ def calculate_perplexity(userInput: str, model: JaNoMiModel):
     # Calculate perplexity
     perplexity = np.exp(np.mean(log_probs))
     return perplexity
+
+def calculate_bertscore(reference, hypothesis):
+    # Compute the BERTScore
+    hypothesis = hypothesis if isinstance(hypothesis, list) else [hypothesis]
+    reference = reference if isinstance(reference, list) else [reference]
+    P, R, F1 = bert_score.score(hypothesis, reference, lang="en")
+    return P.numpy().mean(), R.numpy().mean(), F1.numpy().mean()
