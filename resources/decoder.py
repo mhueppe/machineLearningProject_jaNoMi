@@ -3,8 +3,7 @@
 # project: resources/decoder.py
 import tensorflow as tf
 from .feedForward import FeedForward
-from .positionalEncoding import PositionalEmbedding
-
+from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePositionalEmbedding, RotaryPositionalEmbedding
 
 def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer") -> tf.keras.Model:
     """
@@ -49,7 +48,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer") -> tf.
     return model
 
 
-def Decoder(vocab_size, model_max_length, embedding_dim, dropout, num_layers, num_heads) -> tf.keras.Model:
+def Decoder(embedding, model_max_length, embedding_dim, dropout, num_layers, num_heads, positionalEmbedding) -> tf.keras.Model:
     """
     Implements Decoder.
     :param vocab_size: Size of the vocabulary
@@ -60,10 +59,15 @@ def Decoder(vocab_size, model_max_length, embedding_dim, dropout, num_layers, nu
     :param num_heads: Number of heads per layer
     :return:
     """
-    decoder_input = tf.keras.Input(shape=(None,), name="decoder_input")
     encoder_output = tf.keras.Input(shape=(None, embedding_dim), name="encoder_output")
 
-    x = PositionalEmbedding(vocab_size, model_max_length, embedding_dim)(decoder_input)
+    if positionalEmbedding == "relative":
+        x = RelativePositionalEmbedding(model_max_length//2, embedding_dim)(embedding)
+    elif positionalEmbedding == "rope":
+        x = RotaryPositionalEmbedding(model_max_length,embedding_dim)(embedding)
+    else:
+        x = PositionalEmbedding(model_max_length, embedding_dim)(embedding)
+
     x = tf.keras.layers.Dropout(dropout)(x)
 
     decoder_layers = [
@@ -73,5 +77,5 @@ def Decoder(vocab_size, model_max_length, embedding_dim, dropout, num_layers, nu
     for layer in decoder_layers:
         x = layer([x, encoder_output])
 
-    model = tf.keras.Model(inputs=[decoder_input, encoder_output], outputs=x, name="Decoder")
+    model = tf.keras.Model(inputs=[embedding, encoder_output], outputs=x, name="Decoder")
     return model

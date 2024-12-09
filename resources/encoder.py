@@ -3,8 +3,7 @@
 # project: resources/encoder.py
 import tensorflow as tf
 from .feedForward import FeedForward
-from .positionalEncoding import PositionalEmbedding
-
+from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePositionalEmbedding, RotaryPositionalEmbedding
 
 def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer") -> tf.keras.Model:
     """
@@ -37,7 +36,7 @@ def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer") -> tf.
     return model
 
 
-def Encoder(vocab_size, model_max_length, embedding_dim, dropout, num_layers, num_heads):
+def Encoder(embedding, model_max_length, embedding_dim, dropout, num_layers, num_heads, positionalEmbedding):
     """
     Implements Encoder.
     :param vocab_size: Size of the vocabulary
@@ -48,8 +47,16 @@ def Encoder(vocab_size, model_max_length, embedding_dim, dropout, num_layers, nu
     :param num_heads: Number of heads per layer
     :return:
     """
-    encoder_input = tf.keras.Input(shape=(None,), name="encoder_input")
-    x = PositionalEmbedding(vocab_size, model_max_length, embedding_dim)(encoder_input)
+    # x = PositionalEmbedding(model_max_length, embedding_dim)(encoder_embedding)
+
+    if positionalEmbedding == "relative":
+        x = RelativePositionalEmbedding(model_max_length//2, embedding_dim)(embedding)
+    elif positionalEmbedding == "rope":
+        x = RotaryPositionalEmbedding(model_max_length, embedding_dim)(embedding)
+    elif positionalEmbedding == "segment":
+        x = SegmentEncoding(model_max_length//2, embedding_dim)(embedding)
+    else:
+        x = PositionalEmbedding(model_max_length, embedding_dim)(embedding)
     x = tf.keras.layers.Dropout(dropout)(x)
 
     encoder_layers = [
@@ -59,5 +66,5 @@ def Encoder(vocab_size, model_max_length, embedding_dim, dropout, num_layers, nu
     for layer in encoder_layers:
         x = layer(x)
 
-    model = tf.keras.Model(inputs=encoder_input, outputs=x, name="Encoder")
+    model = tf.keras.Model(inputs=embedding, outputs=x, name="Encoder")
     return model
