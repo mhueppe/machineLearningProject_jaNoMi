@@ -6,8 +6,8 @@ import json
 import os
 from typing import List
 
-from training import load_data
-from .createModel import createModel, init_tokenizers
+from utils.util_readingData import load_data
+from .createModel import init_model, init_tokenizers
 from .inference import GenerateSummary
 # local
 from .model_types import ModelTypes
@@ -33,10 +33,11 @@ class JaNoMiModel:
         self._rake = Rake(max_length=3)
         self._kw_model = KeyBERT()
 
-        # TODO: softcode? outsource data loading?
-        titles, abstracts = load_data()
-        self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts)
-        self._headliner = createModel()
+        with open(os.path.join("resources", "headliner-params.json")) as f:
+            params = json.load(f)
+        titles, abstracts = load_data('Arxiv', params)
+        self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts, params)
+        self._headliner = init_model(params)
         # TODO load model weights
         #self._headliner = tf.keras.models.load_weights(os.path.join("trainedModels","model.weights.h5"))
 
@@ -65,16 +66,15 @@ class JaNoMiModel:
         :param modelType: Model to use for generating output
         :return:
         """
-        if modelType == ModelTypes.TfIdf:
+        if modelType == ModelTypes.Headliner:
+            return self.generateOutput_headliner(userInput)
+        elif modelType == ModelTypes.TfIdf:
             output = self.generateOutput_tfidf(userInput)
         elif modelType == ModelTypes.Rake:
             output = self.generateOutput_rake(userInput)
-        elif modelType == ModelTypes.Headliner:
-            output = self.generateOutput_headliner(userInput)
         else:
             output = self.generateOutput_keyBert(userInput)
 
-        # TODO: makes sense for TfIdf, but should this be changed for headliner?
         return ", ".join(output)
 
     def generateOutput_tfidf(self, userInput: str):
@@ -122,7 +122,7 @@ class JaNoMiModel:
         :param userInput: abstract put in by the user
         :return: title predicted by the model
         """
-        with open(os.path.join("resources","params.json")) as f:
+        with open(os.path.join("resources","headliner-params.json")) as f:
             params = json.load(f)
         summary = GenerateSummary(self._headliner,
                                   np.array(self._context_tokenizer.get_vocabulary()),

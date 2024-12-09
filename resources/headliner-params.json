@@ -8,5 +8,8 @@
     "target_min_length": 0,
     "target_max_length": 20,
     "epochs": 20,
-    "vocab_size": 25953
+    "vocab_size": 25953,
+    "dropout": 0.1,
+    "num_layers": 1,
+    "num_heads": 1
 }

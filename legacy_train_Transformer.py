@@ -3,15 +3,12 @@ import tensorflow as tf
 import numpy as np
 import os
 
-from utils.util_readingData import filter_byLength, split_datasets, readingDataACL, readingDataArxiv
+from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv
 from resources.transformer import Transformer
 from resources.dataPreprocessing import preprocessing, vectorize_text
-from resources.positionalEncoding import PositionalEmbedding
 from resources.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
 from resources.inference import GenerateSummary
 import json
-# Function to create the model based on Optuna's hyperparameter suggestions
-import bert_score
 import re
 import matplotlib.pyplot as plt
 from optuna.visualization import plot_pareto_front
@@ -40,12 +37,6 @@ def summarize(text: str, model):
     output = re.sub(r"\s([.,;:?!])", r"\1", output)
     return output
 
-def calculate_bertscore(reference, hypothesis):
-    # Compute the BERTScore
-    hypothesis = hypothesis if isinstance(hypothesis, list) else [hypothesis]
-    reference = reference if isinstance(reference, list) else [reference]
-    P, R, F1 = bert_score.score(hypothesis, reference, lang="en")
-    return P.numpy().mean(), R.numpy().mean(), F1.numpy().mean()
 
 def create_model(vocab_size, context_max_length, embedding_dim, num_layers, num_heads, dropout):
     model = Transformer(

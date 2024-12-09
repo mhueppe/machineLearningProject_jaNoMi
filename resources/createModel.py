@@ -9,10 +9,7 @@ from resources.transformer import Transformer
 from resources.dataPreprocessing import preprocessing
 
 
-def createModel():
-    with open(os.path.join("resources","params.json")) as f:
-        params = json.load(f)
-
+def init_model(params):
     tf.keras.backend.clear_session()  # Clearing Keras memory
     tf.random.set_seed(params["SEED"])  # For reproducibility
 
@@ -25,15 +22,13 @@ def createModel():
         epsilon=1e-9 # A small constant for numerical stability
     )
 
-    # TODO: move hardcoded vars into params.json
-    # TODO: seperate params
-    vocab_size = params["vocab_size"]
-    model = Transformer(vocab_size,
-                        vocab_size,
+    model = Transformer(params["vocab_size"],
+                        params["vocab_size"],
                         params["context_max_length"],
-                        params["embedding_dim"],dropout=0.1,
-                        num_layers=1,
-                        num_heads=1)
+                        params["embedding_dim"],
+                        params["dropout"],
+                        params["num_layers"],
+                        params["num_heads"])
 
     model.compile(
         optimizer=optimizer,
@@ -44,28 +39,18 @@ def createModel():
     return model
 
 
-def init_tokenizers(titles, abstracts):
-    with open(os.path.join("resources", "params.json")) as f:
-        params = json.load(f)
+def init_tokenizers(titles, abstracts, params):
     contexts = tf.data.Dataset.from_tensor_slices(list(abstracts))
     targets = tf.data.Dataset.from_tensor_slices(list(titles))
     data_adapt = contexts.concatenate(targets).batch(params["batch_size"])
 
-    unique_words = set(titles + abstracts)
-    vocab_size = int(len(unique_words) * 1.2)
-
     context_tokenizer = tf.keras.layers.TextVectorization(
-        max_tokens=vocab_size,
+        max_tokens=params["vocab_size"],
         standardize=preprocessing,
         output_sequence_length=params["context_max_length"]
     )
     context_tokenizer.adapt(data_adapt)
     vocab = np.array(context_tokenizer.get_vocabulary())
-
-    # TODO: this should be deterministic, but it seems bad to call it during training AND inference when initializing the tokenizers
-    params["vocab_size"] = vocab_size
-    with open(os.path.join("resources", "params.json"), "w") as f:
-        json.dump(params, f, indent=4)
 
     target_tokenizer = tf.keras.layers.TextVectorization(
         max_tokens=context_tokenizer.vocabulary_size(),

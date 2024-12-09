@@ -34,32 +34,19 @@ def readingDataArxiv(path: str) -> Tuple[List[str], List[str]]:
     return titles, abstracts
 
 
-# TODO: precalc dataset-sepcific variables into config here?
-def load_data(dataset: str = "ACL", filter_length: bool = False) -> (list[str], list[str]):
+def load_data(dataset: str, params: dict = None) -> (list[str], list[str]):
     if dataset == "ACL":
         titles, abstracts = readingDataACL("dataAnalysis/data/acl_titles_and_abstracts.txt")
     elif dataset == "Arxiv":
-        raise IOError("Dataset not found")
-        #titles, abstracts = readingDataArxiv()
+        titles, abstracts = readingDataArxiv("dataAnalysis/data/ML-Arxiv-Papers_lem.csv")
     else:
         raise KeyError(f"'{dataset}' is no valid dataset")
-    if filter_length:
-        with open(os.path.join("resources", "params.json")) as f:
-            params = json.load(f)
+    if params:
         titles, abstracts = filter_byLength(abstracts,
                                             titles,
                                             (params["context_min_length"], params["context_max_length"]),
                                             (params["target_min_length"], params["target_max_length"]))
     return titles, abstracts
-
-
-def calc_params(abstracts, titles):
-    full_data = abstracts + titles
-    unique_words = set([w for s in full_data for w in s.split()])
-    n_unique_words = len(unique_words)
-    vocab_size = int(n_unique_words * 1.2)
-    print(vocab_size)
-    # TODO: safe to json / delete func?
 
 
 def filter_byLength(abstracts: List[str], titles: List[str],
