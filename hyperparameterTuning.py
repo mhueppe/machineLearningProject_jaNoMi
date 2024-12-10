@@ -58,8 +58,6 @@ def objective(trial):
         history_path = os.path.join(model_dir, "history.json")
         checkpoint_path = os.path.join(model_dir, "modelCheckpoint.weights.h5")
 
-        # TODO: implement continued hyperparameter search from history and info jsons (see train_transformer.py)
-
         # TODO: replicate code and remove common variables?
         # (common) Hyperparameters to optimize
         embedding_dim = trial.suggest_int('embedding_dim', 32, 256, step=16)
