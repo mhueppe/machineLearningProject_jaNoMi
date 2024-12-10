@@ -8,12 +8,10 @@ import numpy as np
 import optuna
 import tensorflow as tf
 
-from resources.dataPreprocessing import preprocessing, vectorize_text
-from resources.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
-from resources.transformer import Transformer
+from resources.preprocessing.dataPreprocessing import preprocessing, vectorize_text
+from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
+from resources.training.transformer import Transformer
 from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv
-
-import wandb
 # from wandb.integration.keras import WandbCallback
 import csv
 import wandb

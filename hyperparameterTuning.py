@@ -7,10 +7,10 @@ import optuna
 import tensorflow as tf
 
 from resources.createModel import init_tokenizers
-from resources.dataPreprocessing import vectorize_text
-from resources.rnn import RNN
-from resources.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
-from resources.transformer import Transformer
+from resources.preprocessing.dataPreprocessing import vectorize_text
+from resources.training.rnn.rnn import RNN
+from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
+from resources.training.transformer.transformer import Transformer
 from utils.util_readingData import split_datasets, load_data
 
 

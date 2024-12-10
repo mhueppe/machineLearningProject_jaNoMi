@@ -2,7 +2,6 @@
 # date: 28.11.2024
 # project: resources/rnn.py
 import tensorflow as tf
-import tensorflow as tf
 
 
 def RNN(context_vocab_size, target_vocab_size,

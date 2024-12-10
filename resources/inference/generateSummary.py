@@ -8,7 +8,7 @@ import re
 from typing import Tuple
 from tqdm.auto import tqdm
 from IPython.core.display import HTML
-from .dataPreprocessing import preprocessing
+from resources.preprocessing.dataPreprocessing import preprocessing
 
 class GenerateSummary:
     def __init__(self,

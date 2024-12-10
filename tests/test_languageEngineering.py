@@ -3,7 +3,7 @@
 # project: tests/test_languageEngineering.py
 import pytest
 
-from resources.languageEngineering import (
+from resources.preprocessing.languageEngineering import (
     remove_citations,
     normalize_text,
     replace_numbers,

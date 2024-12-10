@@ -1,7 +1,7 @@
 # author: Michael Hüppe
 # date: 28.10.2024
 # project: resources/evaluation.py
-from .model import JaNoMiModel
+from resources.model import JaNoMiModel
 import numpy as np
 
 import bert_score

@@ -8,7 +8,7 @@ from typing import List
 
 from utils.util_readingData import load_data
 from .createModel import init_model, init_tokenizers
-from .inference import GenerateSummary
+from resources.inference.generateSummary import GenerateSummary
 # local
 from .model_types import ModelTypes
 
