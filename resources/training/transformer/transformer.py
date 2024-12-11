@@ -7,16 +7,18 @@ from .decoder import Decoder
 
 
 def Transformer(context_vocab_size, target_vocab_size, model_max_length,
-                embedding_dim, dropout, num_layers, num_heads, positional_embedding, use_seperate_embedding):
+                embedding_dim, num_layers, num_heads, dropout, positional_embedding, use_seperate_embedding: bool = False):
     """
     Implementation of a Transformer model after "Attention is all you need"
     :param context_vocab_size: Vocab size of the context
     :param target_vocab_size: Vocab size of the target
     :param model_max_length: Maximum length of the
     :param embedding_dim: Dimension of the Embedding
-    :param dropout: Dropout probability after two drop out layers
     :param num_layers: Number of Encoder Layers
     :param num_heads: Number of heads per layer
+    :param dropout: Dropout probability after two drop out layers
+    :param positional_embedding: Type of positional embedding to use [absolute, relative, rope, (segment)]
+    :param use_seperate_embedding: if True, use seperate Embeddings for encoding and decoding
     :return:
     """
     encoder_input = tf.keras.Input(shape=(None,), name="encoder_input")

@@ -39,7 +39,7 @@ class JaNoMiModel:
         self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts, params)
         self._headliner = init_model(params)
         # TODO load model weights
-        #self._headliner = tf.keras.models.load_weights(os.path.join("trainedModels","model.weights.h5"))
+        #self._headliner.load_weights(os.path.join("trained_models","model.weights.h5"))
 
     @staticmethod
     def encodeInput(userInput: str) -> List[str]:
