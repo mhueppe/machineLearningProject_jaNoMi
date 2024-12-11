@@ -8,6 +8,7 @@ import tensorflow as tf
 
 from resources.createModel import init_tokenizers
 from resources.preprocessing.dataPreprocessing import vectorize_text
+from resources.training.gru.gru import GRU
 from resources.training.rnn.rnn import RNN
 from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
 from resources.training.transformer.transformer import Transformer
@@ -52,29 +53,34 @@ def split_data(titles, abstracts, params):
 def objective(trial):
     try:
         # Create a unique directory for each model trial
-        model_dir = f"trained_models/{modelType}/model_trial_{trial.number}"
+        model_dir = os.path.join("trained_models", modelType, f"model_trial_{trial.number}")
         os.makedirs(model_dir, exist_ok=True)
         model_info_path = os.path.join(model_dir, "modelInfo.json")
         history_path = os.path.join(model_dir, "history.json")
         checkpoint_path = os.path.join(model_dir, "modelCheckpoint.weights.h5")
 
-        # TODO: replicate code and remove common variables?
+        # TODO: replicate code and remove common variables? -> individual tuning
         # (common) Hyperparameters to optimize
         embedding_dim = trial.suggest_int('embedding_dim', 32, 256, step=16)
         num_layers = trial.suggest_int('num_layers', 1, 6)
+        dropout = trial.suggest_float('dropout', 0.1, 0.5)
+        separate_embedding = trial.suggest_categorical('separateEmbedding', [True, False])
 
         if modelType == "rnn":
             num_units = trial.suggest_int('num_units', 1, 100)
-            separateEmbedding = trial.suggest_categorical('separateEmbedding', [True, False])
 
-            model = RNN(params["vocab_size"], params["vocab_size"], embedding_dim=embedding_dim, num_layers=num_layers, num_units=num_units,
-                    use_separateEmbeddings=separateEmbedding)
+            model = RNN(params["vocab_size"], params["vocab_size"], embedding_dim, num_layers, num_units, dropout, separate_embedding)
+
+        elif modelType == "gru":
+            num_units = trial.suggest_int('num_units', 1, 100)
+            model = GRU(params["vocab_size"], params["vocab_size"], embedding_dim, num_layers, num_units, dropout, separate_embedding)
+
         elif modelType == "transformer":
             num_heads = trial.suggest_int('num_heads', 1, 8)
-            dropout = trial.suggest_uniform('dropout', 0.1, 0.5)
+            positional_embedding = 'absolute'#trial.suggest_categorical('positional_embedding', ['absolute', 'test'])
 
             model = Transformer(params["vocab_size"], params["vocab_size"], params["context_max_length"],
-                                embedding_dim, dropout=dropout, num_layers=num_layers, num_heads=num_heads)
+                                embedding_dim, num_layers, num_heads, dropout, positional_embedding, separate_embedding)
 
         # Compiling the model
         learning_rate = CustomSchedule(embedding_dim)
@@ -111,13 +117,17 @@ def objective(trial):
 
         # TODO: replicate code and remove common variables?
         model_parameters = {"embedding_dim": embedding_dim,
-                            "num_layers": num_layers}
+                            "num_layers": num_layers,
+                            "dropout": dropout,
+                            "separateEmbedding": separate_embedding}
 
         if modelType == 'rnn':
-            model_parameters["separateEmbedding"] = separateEmbedding
+            model_parameters["num_units"] = num_units
+        elif modelType == 'gru':
             model_parameters["num_units"] = num_units
         elif modelType == 'transformer':
-            model_parameters["dropout"] = dropout
+            model_parameters["num_heads"] = num_heads
+            model_parameters["positional_embedding"] = positional_embedding
 
         model_info = {"model_parameters": model_parameters,
                       "model_size": model_size / 100_000}
@@ -135,10 +145,10 @@ def objective(trial):
 
 
 if __name__ == '__main__':
-    modelType = 'rnn' # rnn, transformer, lstm
+    modelType = 'gru' # rnn, gru, transformer | later: lstm
     logging.basicConfig(level=logging.INFO)
 
-    with open(os.path.join("resources", f"{modelType}-params.json")) as f:
+    with open(os.path.join("resources", "training", modelType, "params.json")) as f:
         params = json.load(f)
 
     # TODO: Add GPU support?
