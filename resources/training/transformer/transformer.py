@@ -18,6 +18,9 @@ def Transformer(context_vocab_size, target_vocab_size, model_max_length,
     :param num_layers_encoder: Number of Encoder Layers
     :param num_layers_decoder: Number of Encoder Layers
     :param num_heads: Number of heads per layer
+    :param dropout: Dropout probability after two drop out layers
+    :param positional_embedding: Type of positional embedding to use [absolute, relative, rope, (segment)]
+    :param use_seperate_embedding: if True, use seperate Embeddings for encoding and decoding
     :return:
     """
     encoder_input = tf.keras.Input(shape=(None,), name="encoder_input")

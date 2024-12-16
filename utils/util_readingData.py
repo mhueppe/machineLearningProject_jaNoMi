@@ -35,9 +35,9 @@ def readingDataArxiv(path: str) -> Tuple[List[str], List[str]]:
 
 
 def load_data(dataset: str, params: dict = None) -> (list[str], list[str]):
-    if dataset == "ACL":
+    if dataset.lower() == "acl":
         titles, abstracts = readingDataACL("dataAnalysis/data/acl_titles_and_abstracts.txt")
-    elif dataset == "Arxiv":
+    elif dataset.lower() == "arxiv":
         titles, abstracts = readingDataArxiv("dataAnalysis/data/ML-Arxiv-Papers_lem.csv")
     else:
         raise KeyError(f"'{dataset}' is no valid dataset")

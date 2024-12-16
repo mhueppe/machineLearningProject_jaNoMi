@@ -1,0 +1,15 @@
+{
+    "steps_per_epoch": 100,
+    "validation_steps": 10,
+    "epochs": 200,
+    "nTrials": 100,
+    "nEvaluationSamples": 100,
+    "vocab_size": 5000,
+    "context_min_length": 50,
+    "context_max_length": 250,
+    "target_min_length": 1,
+    "target_max_length": 20,
+    "batch_size": 32,
+    "buffer_size": 1024,
+    "SEED": 123
+}
