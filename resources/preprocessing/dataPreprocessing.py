@@ -40,9 +40,15 @@ def preprocessing(text: str) -> str:
 
 
 # Preprocessing function
-def preprocess_data_with_tf_bert(contexts, targets,
-                                 tokenizer: Tokenizer):
-    """Preprocesses contexts and targets using TensorFlow's BERT tokenizer."""
+def tokenizeData(contexts, targets,
+                 tokenizer: Tokenizer):
+    """
+    Preprocesses contexts and targets using the given tokenizer.
+    Also right shifts the contexts for next word prediction
+    :param contexts: Context to tokenize
+    :param targets: targets to tokenize
+    :param tokenizer: Tokenizer to use for tokenizer
+    """
     tokenized_contexts = tokenizer.tokenize(contexts, frame=False)
     tokenized_targets = tokenizer.tokenize(targets, frame=True)
     targets_in = tokenized_targets[:, :-1]
@@ -51,12 +57,17 @@ def preprocess_data_with_tf_bert(contexts, targets,
 
 
 # Create datasets
-def create_dataset_with_tf_bert(contexts, targets,
-                                tokenizer,
-                                context_max_length, target_max_length,
-                                _PAD_TOKEN: int = 0, _START_TOKEN: int = 2, _END_TOKEN: int = 3):
-    tokenized_contexts, tokenized_targets = preprocess_data_with_tf_bert(
-        contexts, targets, tokenizer, context_max_length, target_max_length
+def create_dataset(contexts, targets,
+                   tokenizer) -> tf.data.Dataset:
+    """
+    Tokenize the data with the given tokenizer
+    :param contexts: Context to tokenize
+    :param targets: targets to tokenize
+    :param tokenizer: Tokenizer to use for tokenizer
+    return dataset from the tokenized data
+    """
+    tokenized_contexts, tokenized_targets = tokenizeData(
+        contexts, targets, tokenizer
     )
     dataset = tf.data.Dataset.from_tensor_slices((tokenized_contexts, tokenized_targets))
     return dataset

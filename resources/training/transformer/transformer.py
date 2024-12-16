@@ -6,8 +6,14 @@ from .encoder import Encoder
 from .decoder import Decoder
 
 
-def Transformer(context_vocab_size, target_vocab_size, model_max_length,
-                embedding_dim, dropout, num_layers_encoder, num_layers_decoder, num_heads, positional_embedding, use_seperate_embedding):
+def Transformer(
+        context_vocab_size: int = 5000, target_vocab_size: int = 5000,
+                model_max_length: int = 250,
+                embedding_dim: int = 64,
+                dropout: float = 0.1,
+                num_layers_encoder: int = 1, num_layers_decoder: int = 1,
+                num_heads: int = 1,
+                positional_embedding: str = "rope", use_seperate_embedding: bool = True, **kwargs):
     """
     Implementation of a Transformer model after "Attention is all you need"
     :param context_vocab_size: Vocab size of the context

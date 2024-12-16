@@ -1,0 +1,20 @@
+{
+    "wandb_key": "2a1858214a5ef0007db7b98c92dbb7d5cabeebb0",
+    "data_path": "/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/ML-Arxiv-Papers.csv",
+    "steps_per_epoch" : 10,
+    "validation_steps" : 50,
+    "epochs" : 200,
+    "nTrials" : 30,
+    "nEvaluationSamples" : 20,
+    "context_min_length" : 50,
+    "context_max_length" : 250,
+    "target_min_length" : 1,
+    "target_max_length" : 40,
+    "batch_size" : 64,
+    "vocab_size" : 5000,
+    "tokenizer": "bert",
+    "tokenizer_vocab_path": "/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/arxiv_vocab.txt",
+    "model_type": "Transformer",
+    "model_params_path": "transformer/transformer_params.json"
+
+}

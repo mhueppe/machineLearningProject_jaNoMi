@@ -1,7 +1,6 @@
 # author: Michael Hüppe
 # date: 28.10.2024
 # project: resources/evaluation.py
-from resources.model import JaNoMiModel
 import numpy as np
 
 from nltk.translate.bleu_score import sentence_bleu
@@ -12,7 +11,7 @@ import numpy as np
 import bert_score
 
 
-def calculate_perplexity(userInput: str, model: JaNoMiModel):
+def calculate_perplexity(userInput: str, model):
     """
     Calculate the perplexity of a given sentence based on the probabilities from a language model.
     :param userInput: The input sentence (string).

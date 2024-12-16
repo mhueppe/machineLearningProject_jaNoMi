@@ -46,14 +46,15 @@ class TokenizerBert(Tokenizer):
     Implement the bert tokenizer
     """
     def __init__(self, vocab_file: Union[str, None],
-                 max_length: int = 250,
-                 _PAD_TOKEN: int = 0, _START_TOKEN: int = 2, _END_TOKEN: int = 3):
+                 max_length: int = 250):
         bert_tokenizer_params = dict(lower_case=True)
         self._tokenizer = text.BertTokenizer(vocab_file, **bert_tokenizer_params)
         self._max_length = max_length
-        self._PAD_TOKEN = _PAD_TOKEN
-        self._START_TOKEN = _START_TOKEN
-        self._END_TOKEN = _END_TOKEN
+        self.vocab = open(vocab_file, "r").read().split("\n")
+
+        self._PAD_TOKEN: int = self.vocab.index("[PAD]")
+        self._START_TOKEN: int = self.vocab.index("[START]")
+        self._END_TOKEN: int = self.vocab.index("[END]")
 
     def tokenize(self, texts: List[str], frame: bool = True, **kwargs):
         """

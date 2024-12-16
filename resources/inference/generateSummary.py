@@ -30,8 +30,8 @@ class GenerateSummary:
         self.token_end = vocab.index("[END]")
         self.token_pad = vocab.index("[PAD]")
         self.token_unk = vocab.index("[UNK]")
-        self.vocab_size = len(vocab)
         self.tokenizer = tokenizer
+        self.vocab_size = model.output_shape[-1]
         # Mask to discard [UNK] tokens and padding tokens
         self.mask = tf.scatter_nd(
             indices=[[self.token_pad], [self.token_unk]],

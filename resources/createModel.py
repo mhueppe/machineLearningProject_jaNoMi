@@ -9,9 +9,14 @@ from resources.training.transformer.transformer import Transformer
 from resources.preprocessing.dataPreprocessing import preprocessing
 
 
-def init_model(params):
+def init_model(Model, params):
+    """
+    Initialize the model
+    :param Model: Model class to init
+    :param params: Parameters for the model (parameters are handled in the model functions)
+    """
     tf.keras.backend.clear_session()  # Clearing Keras memory
-    tf.random.set_seed(params["SEED"])  # For reproducibility
+    tf.random.set_seed(params.get("SEED", 69))  # For reproducibility
 
     # TODO: describe the parameters and softcode
     learning_rate = CustomSchedule(params["embedding_dim"])
@@ -22,13 +27,7 @@ def init_model(params):
         epsilon=1e-9 # A small constant for numerical stability
     )
 
-    model = Transformer(params["vocab_size"],
-                        params["vocab_size"],
-                        params["context_max_length"],
-                        params["embedding_dim"],
-                        params["dropout"],
-                        params["num_layers"],
-                        params["num_heads"])
+    model = Model(**params)
 
     model.compile(
         optimizer=optimizer,

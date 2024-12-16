@@ -13,7 +13,7 @@ from tensorflow.keras.callbacks import Callback
 from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv
 import optuna
 
-from resources.preprocessing.dataPreprocessing import preprocessing, vectorize_text, create_dataset_with_tf_bert, \
+from resources.preprocessing.dataPreprocessing import preprocessing, vectorize_text, create_dataset, \
     tokenize_with_tf_bert
 from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
 from resources.training.transformer.transformer import Transformer
@@ -239,14 +239,14 @@ def bertTokenization():
     tokenizer = text.BertTokenizer('pt_vocab.txt', **bert_tokenizer_params)
 
     # Preprocessing train and validation datasets
-    train_dataset = create_dataset_with_tf_bert(
+    train_dataset = create_dataset(
         train_abs, train_titles,
         tokenizer,
         context_max_length, target_max_length,
         _PAD_TOKEN, _START_TOKEN, _END_TOKEN
     ).batch(batch_size).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
-    val_dataset = create_dataset_with_tf_bert(
+    val_dataset = create_dataset(
         val_abs, val_titles,
         tokenizer,
         context_max_length, target_max_length,
