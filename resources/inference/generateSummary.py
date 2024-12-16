@@ -6,26 +6,35 @@ import numpy as np
 import tensorflow as tf
 import re
 from typing import Tuple
+
+from lxml.html.diff import token
 from tqdm.auto import tqdm
+from resources.preprocessing.tokenizer import Tokenizer
 from IPython.core.display import HTML
 from resources.preprocessing.dataPreprocessing import preprocessing
 
 class GenerateSummary:
+    """
+    Class for generating titles
+    """
     def __init__(self,
                  model,
-                 vocab: np.ndarray, vocab_size: int,
-                 context_tokenizer: tf.keras.layers.TextVectorization,
+                 vocab: np.ndarray,
+                 tokenizer: Tokenizer,
                  target_max_length: int):
         self.model = model
-        self.context_tokenizer = context_tokenizer
+        self.vocab = list(vocab)
+        self.tokenizer = tokenizer
         self.target_max_length = target_max_length
-        self.token_start = list(vocab).index("[START]")
-        self.token_end = list(vocab).index("[END]")
-        self.vocab = vocab
-        self.vocab_size = vocab_size
+        self.token_start = vocab.index("[START]")
+        self.token_end = vocab.index("[END]")
+        self.token_pad = vocab.index("[PAD]")
+        self.token_unk = vocab.index("[UNK]")
+        self.vocab_size = len(vocab)
+        self.tokenizer = tokenizer
         # Mask to discard [UNK] tokens and padding tokens
         self.mask = tf.scatter_nd(
-            indices=[[0], [1]],
+            indices=[[self.token_pad], [self.token_unk]],
             updates=[-float("inf"), -float("inf")],
             shape=(self.vocab_size,)
         )
@@ -39,7 +48,7 @@ class GenerateSummary:
         return next_token[None, :]
 
     def summarize(self, text: str) -> str:
-        encoder_input = self.context_tokenizer([text])
+        encoder_input = self.tokenizer.tokenize(text)
         output = tf.constant(self.token_start, shape=(1, 1))
 
         for _ in range(self.target_max_length - 1):
@@ -49,10 +58,7 @@ class GenerateSummary:
 
             output = tf.concat([output, next_token], axis=-1)
 
-        output = " ".join(self.vocab[output[0, 1:]])
-        # Remove extra spaces from punctuation
-        output = re.sub(r"\s([.,;:?!])", r"\1", output)
-        return output
+        return self.tokenizer.detokenize(output)
 
 
 

@@ -27,76 +27,6 @@ import torch
 # Function to create the model based on Optuna's hyperparameter suggestions
 # import bert_score
 
-class WandbLoggingCallback(Callback):
-
-    def on_epoch_end(self, epoch, logs=None):
-        """
-        Called at the end of each epoch. Logs metrics and loss to W&B.
-        Args:
-            epoch (int): The current epoch number.
-            logs (dict): Contains metrics and loss from the current epoch.
-        """
-        if logs is not None:
-            predictions = self.model.predict(sample[0])
-            predicted_classes = tf.argmax(predictions, axis=-1)
-
-            # Log to W&B
-            wandb.log({
-                "DifferenceHeatmap": wandb.Image(np.abs(predicted_classes - sample[1]),
-                                                 caption="Absolute difference between batch prediction and label"),
-            })
-            # Log all metrics provided in logs to W&B
-            wandb.log({f"epoch_{key}": value for key, value in logs.items()})
-            wandb.log({"epoch": epoch})  # Log epoch number separately
-
-    def on_batch_end(self, batch, logs=None):
-        """
-        Called at the end of each batch. Logs batch-level metrics and loss to W&B.
-        Args:
-            batch (int): The current batch number.
-            logs (dict): Contains metrics and loss from the current batch.
-        """
-        if logs is not None:
-            # Log batch-level metrics to W&B
-            wandb.log({f"batch_{key}": value for key, value in logs.items()})
-            wandb.log({"batch": batch})  # Log batch number separately
-
-
-class SummarizationCallback(tf.keras.callbacks.Callback):
-    def __init__(self, tokenizer, texts_to_summarize, reference_titles):
-        super().__init__()
-        self.tokenizer = tokenizer
-        self.texts_to_summarize = texts_to_summarize
-        self.reference_titles = reference_titles
-        self.lang = "en"  # Language for BERTScore, default is English
-
-    def on_epoch_end(self, epoch, logs=None):
-        generated_summaries = []
-        for text in self.texts_to_summarize:
-            summary = summarize(text, self.model)
-            generated_summaries.append(summary)
-
-        # Compute BERTScore
-        # Ensure the device is set to CPU
-        # precision, recall, f1 = score(generated_summaries, self.reference_titles, lang=self.lang, device=self._device)
-
-        # Log to WandB
-        # wandb.log({
-        #     "epoch": epoch,
-        #     "bert_score_precision": precision.mean().item(),
-        #     "bert_score_recall": recall.mean().item(),
-        #     "bert_score_f1": f1.mean().item(),
-        # })
-        # Create a WandB Table
-        table = wandb.Table(columns=["Input Text", "Generated Summary", "Reference Title"])
-        for input_text, generated_summary, reference_title in zip(
-                self.texts_to_summarize, generated_summaries, self.reference_titles
-        ):
-            table.add_data(input_text, generated_summary, reference_title)
-
-        # Log the table to WandB
-        wandb.log({"epoch": epoch, "titles": table})
-
 
 # Transforming the function into an optimized computational graph to accelerate prediction
 # @tf.function
@@ -119,8 +49,7 @@ def summarize(text: str, model):
 
         output = tf.concat([output, next_token], axis=-1)
 
-    output = str(
-        tf.strings.reduce_join(tokenizer.detokenize(output), separator=" ", axis=-1).numpy()[0].decode("utf-8"))
+
     # Remove extra spaces from punctuation
     output = re.sub(r"\s([.,;:?!])", r"\1", output).replace("[START]", "").title()
     return output
