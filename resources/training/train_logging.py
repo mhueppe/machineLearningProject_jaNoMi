@@ -62,7 +62,7 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
             cider_score = compute_cider(reference_title, generated_summary)
             rouge_score = compute_rouge(reference_title, generated_summary)["rouge2"].fmeasure
             bleu_score = compute_bleu(reference_title, generated_summary)
-            repeated_words_score = compute_repeated_words(reference_title)
+            repeated_words_score = compute_repeated_words(generated_summary)
 
             # add input, output, label and scores to table
             table.add_data(input_text, generated_summary, reference_title, cider_score, rouge_score, bleu_score,

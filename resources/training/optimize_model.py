@@ -1,26 +1,18 @@
 # author: Michael Hüppe
 # date: 16.12.2024
 # project: resources/train_model.py
-import datetime
 import json
-import os
-from io import StringIO
-from typing import Tuple, List
 
-from resources.createModel import init_model
-from resources.training.train_logging import SummarizationCallback, WandbLoggingCallback
-from resources.inference.generateSummary import GenerateSummary
-from resources.preprocessing.dataPreprocessing import create_dataset
-from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord, Tokenizer
-from resources.training.rnn.rnn import RNN
-from resources.training.transformer.transformer import Transformer
-from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv
-from resources.training.train_model import train_model
 # external
 import numpy as np
+import optuna
 import tensorflow as tf
 import wandb
-import optuna
+
+from resources.preprocessing.dataPreprocessing import create_dataset
+from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord
+from resources.training.train_model import train_model
+from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv
 
 
 # internal

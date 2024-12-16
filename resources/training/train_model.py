@@ -7,7 +7,7 @@ import os
 from io import StringIO
 from typing import Tuple, List
 
-from resources.createModel import init_model
+from ..createModel import init_model
 from resources.training.train_logging import SummarizationCallback, WandbLoggingCallback
 from resources.inference.generateSummary import GenerateSummary
 from resources.preprocessing.dataPreprocessing import create_dataset

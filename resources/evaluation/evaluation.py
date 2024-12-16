@@ -8,8 +8,6 @@ from rouge_score import rouge_scorer
 from collections import Counter
 import numpy as np
 
-import bert_score
-
 
 def calculate_perplexity(userInput: str, model):
     """
@@ -97,6 +95,7 @@ def compute_repeated_words(hypothesis):
 
 def calculate_bertscore(reference, hypothesis):
     # Compute the BERTScore
+    import bert_score
     hypothesis = hypothesis if isinstance(hypothesis, list) else [hypothesis]
     reference = reference if isinstance(reference, list) else [reference]
     P, R, F1 = bert_score.score(hypothesis, reference, lang="en")
