@@ -115,7 +115,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             json.dump(history.history, f)
 
         # Return both the model size to minimize and score to maximize (Optuna can handle both)
-        return model_size, history # Return negative score for maximization
+        return model, model_size, history # Return negative score for maximization
     except Exception as e:
         wandb.log({"error": str(e)})
         print(f"{model_name} was not finished due to: {e}")
