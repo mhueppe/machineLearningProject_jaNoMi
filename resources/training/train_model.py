@@ -21,6 +21,7 @@ import numpy as np
 import tensorflow as tf
 import wandb
 
+
 # internal
 
 
@@ -115,13 +116,14 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             json.dump(history.history, f)
 
         # Return both the model size to minimize and score to maximize (Optuna can handle both)
-        return model, model_size, history # Return negative score for maximization
+        return model, model_size, history  # Return negative score for maximization
     except Exception as e:
         wandb.log({"error": str(e)})
         print(f"{model_name} was not finished due to: {e}")
         return float('inf'), 0
     finally:
         wandb.finish()
+
 
 if __name__ == '__main__':
     # Data loading
@@ -149,10 +151,17 @@ if __name__ == '__main__':
     # Mask to discard [UNK] tokens and padding tokens
 
     train_abs, train_titles, val_abs, val_titles, test_abs, test_titles = split_datasets(abstracts, titles)
+    vocab_exists = os.path.isfile(train_params["tokenizer_vocab_path"])
     if train_params["tokenizer"] == "bert":
-        tokenizer = TokenizerBert(train_params["tokenizer_vocab_path"],target_max_length)
+        if not vocab_exists:
+            TokenizerBert.train(abstracts + titles, file_path=train_params["tokenizer_vocab_path"],
+                                vocab_size=vocab_size)
+        tokenizer = TokenizerBert(train_params["tokenizer_vocab_path"], target_max_length)
     elif train_params["tokenizer"] == "word":
-        tokenizer = TokenizerWord(train_params["tokenizer_vocab_path"],target_max_length)
+        if not vocab_exists:
+            TokenizerWord.train(abstracts + titles, file_path=train_params["tokenizer_vocab_path"],
+                                vocab_size=vocab_size)
+        tokenizer = TokenizerWord(train_params["tokenizer_vocab_path"], target_max_length)
     else:
         raise KeyError
 
@@ -167,6 +176,5 @@ if __name__ == '__main__':
         tokenizer,
     ).batch(batch_size).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
-    train_model(train_params, tokenizer, train_dataset, val_dataset, evaluationBatch=(val_abs[:batch_size], val_titles[:batch_size]))
-
-
+    train_model(train_params, tokenizer, train_dataset, val_dataset,
+                evaluationBatch=(val_abs[:batch_size], val_titles[:batch_size]))
