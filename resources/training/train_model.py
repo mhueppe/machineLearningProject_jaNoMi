@@ -57,7 +57,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         model = init_model(model_class, model_settings)
 
         # Callback to stop training early if accuracy does not increase for 5 epochs
-        callback = tf.keras.callbacks.EarlyStopping(monitor="val_masked_accuracy", patience=5,
+        callback = tf.keras.callbacks.EarlyStopping(monitor="val_masked_accuracy", patience=settings.get("early_stopping_patience", 15),
                                                     restore_best_weights=True, mode="max")
 
         # Callback to save model weights
