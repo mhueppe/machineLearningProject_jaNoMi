@@ -7,14 +7,14 @@ import os
 from io import StringIO
 from typing import Tuple, List
 
-from ..createModel import init_model
+from resources.createModel import init_model
 from resources.training.train_logging import SummarizationCallback, WandbLoggingCallback
 from resources.inference.generateSummary import GenerateSummary
-from resources.preprocessing.dataPreprocessing import create_dataset
+from resources.preprocessing.dataPreprocessing import tokenizeData
 from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord, Tokenizer
 from resources.training.rnn.rnn import RNN
 from resources.training.transformer.transformer import Transformer
-from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv
+from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv, dataGenerator
 
 # external
 import numpy as np
@@ -45,6 +45,10 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         summary_path = os.path.join(model_dir, "summary.txt")
         # Hyperparameters to optimize
         wandb.init(project="transformer_optimization", name=model_name)
+        model_settings.update(settings)
+        model_settings["target_vocab_size"] = model_settings.get("vocab_size", 5000)
+        model_settings["context_vocab_size"] = model_settings.get("vocab_size", 5000)
+        model_settings["model_max_length"] = model_settings.get("context_max_length", 5000)
         wandb.config.update(settings)
         wandb.config.update(model_settings)
         # Model creation
@@ -57,7 +61,8 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         model = init_model(model_class, model_settings)
 
         # Callback to stop training early if accuracy does not increase for 5 epochs
-        callback = tf.keras.callbacks.EarlyStopping(monitor="val_masked_accuracy", patience=settings.get("early_stopping_patience", 15),
+        callback = tf.keras.callbacks.EarlyStopping(monitor="val_masked_accuracy",
+                                                    patience=settings.get("early_stopping_patience", 15),
                                                     restore_best_weights=True, mode="max")
 
         # Callback to save model weights
@@ -131,7 +136,8 @@ if __name__ == '__main__':
     wandb.login(key=train_params["wandb_key"])
     override = True
     study_name = "Transformer"
-    titles, abstracts = readingDataArxiv(train_params["data_path"])
+    path_train = train_params["data_path_train"]
+    path_val = train_params["data_path_val"]
     steps_per_epoch = train_params["steps_per_epoch"]
     validation_steps = train_params["validation_steps"]
     epochs = train_params["epochs"]
@@ -145,36 +151,55 @@ if __name__ == '__main__':
     batch_size = train_params["batch_size"]
     vocab_size = train_params["vocab_size"]
 
-    abstracts, titles = filter_byLength(abstracts, titles,
-                                        range_abstracts=(context_min_length, context_max_length),
-                                        range_titles=(target_min_length, target_max_length))
     # Mask to discard [UNK] tokens and padding tokens
 
-    train_abs, train_titles, val_abs, val_titles, test_abs, test_titles = split_datasets(abstracts, titles)
     vocab_exists = os.path.isfile(train_params["tokenizer_vocab_path"])
+    train_dataset = tf.data.Dataset.from_generator(
+        dataGenerator,
+        output_signature=(tf.TensorSpec(shape=(), dtype=tf.string),
+                          tf.TensorSpec(shape=(), dtype=tf.string)),
+        args=(path_train,)  # You can change "abstract" to "title" if needed
+    )
+    val_dataset = tf.data.Dataset.from_generator(
+        dataGenerator,
+        output_signature=(tf.TensorSpec(shape=(), dtype=tf.string),
+                          tf.TensorSpec(shape=(), dtype=tf.string)),
+        args=(path_val,)  # You can change "abstract" to "title" if needed
+    )
+    val_titles = []
+    val_abs = []
+    for title, abstract in val_dataset.take(batch_size).as_numpy_iterator():
+        val_titles.append(title)
+        val_abs.append(abstract)
     if train_params["tokenizer"] == "bert":
         if not vocab_exists:
-            TokenizerBert.train(abstracts + titles, file_path=train_params["tokenizer_vocab_path"],
+            print("No existing vocabulary found. Create new one.")
+            TokenizerBert.train(train_dataset, file_path=train_params["tokenizer_vocab_path"],
                                 vocab_size=vocab_size)
         tokenizer = TokenizerBert(train_params["tokenizer_vocab_path"], target_max_length)
     elif train_params["tokenizer"] == "word":
         if not vocab_exists:
-            TokenizerWord.train(abstracts + titles, file_path=train_params["tokenizer_vocab_path"],
+            train_dataset = train_dataset.repeat()
+            TokenizerWord.train([title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
+                                file_path=train_params["tokenizer_vocab_path"],
                                 vocab_size=vocab_size)
         tokenizer = TokenizerWord(train_params["tokenizer_vocab_path"], target_max_length)
     else:
         raise KeyError
 
     # Preprocessing train and validation datasets
-    train_dataset = create_dataset(
-        train_abs, train_titles,
-        tokenizer,
-    ).batch(batch_size).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
-    val_dataset = create_dataset(
-        val_abs, val_titles,
-        tokenizer,
-    ).batch(batch_size).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
+    train_dataset = train_dataset.batch(batch_size).map(
+        lambda contexts, targets: tokenizeData(contexts, targets,
+                                               tokenizer,
+                                               context_max_length, target_max_length)
+    ).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
+
+    val_dataset = val_dataset.batch(batch_size).map(
+        lambda contexts, targets: tokenizeData(contexts, targets,
+                                               tokenizer,
+                                               context_max_length, target_max_length)
+    ).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
     train_model(train_params, tokenizer, train_dataset, val_dataset,
                 evaluationBatch=(val_abs[:batch_size], val_titles[:batch_size]))

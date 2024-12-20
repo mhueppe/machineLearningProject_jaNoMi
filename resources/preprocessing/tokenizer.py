@@ -1,14 +1,13 @@
-# author: Michael Hüppe
+# author: Michael Hueppe
 # date: 11.11.2024
 # project: resources/inference.py
+import logging
 import os.path
-from typing import Union, List
+from collections import Counter
+from typing import Union, List, Callable
 import tensorflow as tf 
 import re
 import tensorflow_text as text
-from jedi.inference.gradual.typing import Callable
-from sympy.abc import lamda
-
 
 class Tokenizer:
     """
@@ -26,7 +25,7 @@ class Tokenizer:
         Detokenize the tokens to a strin
         """
         raise NotImplemented
-    
+
     @staticmethod
     def train(**kwargs):
         """
@@ -77,13 +76,14 @@ class TokenizerBert(Tokenizer):
         tokenized = tokenized.to_tensor(default_value=self._PAD_TOKEN, shape=[None, self._max_length])  # Pad to max_length
         return tokenized
 
+
     @staticmethod
-    def train(data: List[str], file_path: str = "vocab.txt", vocab_size: int = 8000,
+    def train(dataset, file_path: str = "vocab.txt", vocab_size: int = 8000,
               reserved_tokens: List[str] = None) -> str:
         """
         Train the tokenizer
         this should be called if no vocab has been given before
-        :returns file_path: Path under which the tokenizer has been saved (for loading) 
+        :returns file_path: Path under which the tokenizer has been saved (for loading)
         """
         if os.path.isfile(file_path):
             return file_path
@@ -101,14 +101,17 @@ class TokenizerBert(Tokenizer):
             # Arguments for `wordpiece_vocab.wordpiece_tokenizer_learner_lib.learn`
             learn_params={},
         )
+        logging.info("Created data set")
         vocab = bert_vocab.bert_vocab_from_dataset(
-            tf.data.Dataset.from_tensors(data),
+            dataset,
             **bert_vocab_args
         )
+        logging.info("Vocab defined")
 
         with open(file_path, 'w') as f:
             for token in vocab:
                 print(token, file=f)
+
         return file_path
 
     def detokenize(self, tokens, **kwargs) -> str:
@@ -173,3 +176,25 @@ class TokenizerWord(Tokenizer):
         :param tokens: tokens to translate into human readable text
         """
         return self.prettify(" ".join(self.vocab[0, 1:]))
+
+if __name__ == '__main__':
+    # Configure logging to print INFO messages to the console
+    logging.basicConfig(
+        level=logging.INFO,  # Set the threshold level to INFO
+        format="%(asctime)s - %(levelname)s - %(message)s",  # Add timestamps and levels
+    )
+    import json
+    import pandas as pd
+
+    df = pd.read_csv("/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/arxiv-metadata-oai-snapshot.csv")
+    abstracts = df["abstract"].values
+    titles = df["title"].values
+    logging.info("Read data")
+
+    vocab_size = 8000
+
+    logging.info("Data filtered")
+    file_path = TokenizerBert.train(abstracts + titles,
+                                    file_path=r"arxiv_vocab_full.txt",
+                        vocab_size=vocab_size)
+    logging.info(f"Vocabulary of size {vocab_size} was saved under {file_path}")

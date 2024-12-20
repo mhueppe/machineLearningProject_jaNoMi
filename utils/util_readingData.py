@@ -9,6 +9,7 @@ import numpy as np
 import random
 from typing import List, Tuple
 import pandas as pd
+import csv
 
 
 def readingDataACL(path: str) -> Tuple[List[str], List[str]]:
@@ -22,13 +23,28 @@ def readingDataACL(path: str) -> Tuple[List[str], List[str]]:
     return zip(*papers)
 
 
-def readingDataArxiv(path: str) -> Tuple[List[str], List[str]]:
+def dataGenerator(file_path, inputs_idx: int = 1, targets_idx: int = 2):
+    """
+    Reads the csv file line by line so that the
+    :param targets_idx: Index of target column
+    :param inputs_idx: Index of input column
+    :param file_path:
+    :return:
+    """
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        reader = csv.reader(f, delimiter=",")
+        _ = reader.__next__()
+        for i, line in enumerate(reader):
+            yield line[1], line[2]
+
+
+def readingDataArxiv(path: str, nrows: int = None) -> Tuple[List[str], List[str]]:
     """
     Read the Arxiv data
     :param path: File path to read the data from
     :return: titles, abstracts NOTE: corresponds to y, x for training
     """
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, nrows=nrows)
     abstracts = df["abstract"].values
     titles = df["title"].values
     return titles, abstracts

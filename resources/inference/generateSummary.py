@@ -5,9 +5,6 @@ import numpy as np
 # Class for generating summaries
 import tensorflow as tf
 import re
-from typing import Tuple
-
-from lxml.html.diff import token
 from tqdm.auto import tqdm
 from resources.preprocessing.tokenizer import Tokenizer
 from IPython.core.display import HTML
