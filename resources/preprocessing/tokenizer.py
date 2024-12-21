@@ -49,7 +49,7 @@ class TokenizerBert(Tokenizer):
         bert_tokenizer_params = dict(lower_case=True)
         self._tokenizer = text.BertTokenizer(vocab_file, **bert_tokenizer_params)
         self._max_length = max_length
-        self.vocab = open(vocab_file, "r").read().split("\n")
+        self.vocab = open(vocab_file, "r", errors="ignore").read().split("\n")
 
         self._PAD_TOKEN: int = self.vocab.index("[PAD]")
         self._START_TOKEN: int = self.vocab.index("[START]")

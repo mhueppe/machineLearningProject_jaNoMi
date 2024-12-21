@@ -98,8 +98,8 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         val_titles = evaluationBatch[1]
         summarizationCB = SummarizationCallback(
             titleGenerator=titleGenerator,
-            texts_to_summarize=val_abs[:15],  # Choose a few texts for logging
-            reference_titles=val_titles[:15]  # Their corresponding titles
+            context=val_abs[:15],  # Choose a few texts for logging
+            reference=val_titles[:15]  # Their corresponding titles
         )
 
         # Train the model

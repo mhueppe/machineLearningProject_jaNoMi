@@ -36,16 +36,16 @@ class WandbLoggingCallback(Callback):
 
 class SummarizationCallback(tf.keras.callbacks.Callback):
     def __init__(self, titleGenerator: GenerateSummary,
-                 texts_to_summarize, reference_titles):
+                 context, reference):
         super().__init__()
         self.titleGenerator = titleGenerator
-        self.texts_to_summarize = texts_to_summarize
-        self.reference_titles = reference_titles
+        self.context = [c.decode("utf-8") if isinstance(c, bytes) else c for c in context]
+        self.reference = [r.decode("utf-8") if isinstance(r, bytes) else r for r in reference]
         self.lang = "en"  # Language for BERTScore, default is English
 
     def on_epoch_end(self, epoch, logs=None):
         generated_summaries = []
-        for text in self.texts_to_summarize:
+        for text in self.context:
             summary = self.titleGenerator.summarize(text)
             generated_summaries.append(summary)
 
@@ -57,7 +57,7 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
         table = wandb.Table(columns=["Input Text", "Generated Summary", "Reference Title", "Cider score", "Rouge",
                                      "Bleu score", "Repeated Words"])
         for input_text, generated_summary, reference_title in zip(
-                self.texts_to_summarize, generated_summaries, self.reference_titles
+                self.context, generated_summaries, self.reference
         ):
             cider_score = compute_cider(reference_title, generated_summary)
             rouge_score = compute_rouge(reference_title, generated_summary)["rouge2"].fmeasure
@@ -65,7 +65,8 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
             repeated_words_score = compute_repeated_words(generated_summary)
 
             # add input, output, label and scores to table
-            table.add_data(input_text, generated_summary, reference_title, cider_score, rouge_score, bleu_score,
+
+            table.add_data(str(input_text), str(generated_summary), str(reference_title), cider_score, rouge_score, bleu_score,
                            repeated_words_score)
 
             cider_scores.append(cider_score)
