@@ -41,7 +41,14 @@ class GenerateSummary:
         logits = self.model([encoder_input, output])
         logits = logits[:, -1, :]
         logits += self.mask
-        next_token = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
+        # deterministically chooses the token with the highest probability
+        # next_token = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
+
+        # probabilistically chooses the token based on its probability
+        next_token = tf.random.categorical(logits, dtype=tf.int32)
+        while next_token in output[-4:]:
+            # resample if the same token has already been generated in one of the last 4 tokens
+            next_token = tf.random.categorical(logits, dtype=tf.int32)
         return next_token[None, :]
 
     def summarize(self, text: str) -> str:
