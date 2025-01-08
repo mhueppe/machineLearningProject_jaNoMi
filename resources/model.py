@@ -126,7 +126,7 @@ class JaNoMiModel:
         with open(os.path.join("resources","headliner-params.json")) as f:
             params = json.load(f)
         summary = GenerateSummary(self._headliner,
-                                  np.array(self._context_tokenizer.get_vocabulary()),
+                                  self._context_tokenizer.get_vocabulary(),
                                   self._context_tokenizer,
                                   params["target_max_length"])
         return summary.summarize(userInput)

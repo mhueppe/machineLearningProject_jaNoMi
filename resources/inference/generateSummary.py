@@ -16,11 +16,11 @@ class GenerateSummary:
     """
     def __init__(self,
                  model,
-                 vocab: np.ndarray,
+                 vocab: list,
                  tokenizer: Tokenizer,
                  target_max_length: int):
         self.model = model
-        self.vocab = list(vocab)
+        self.vocab = vocab
         self.tokenizer = tokenizer
         self.target_max_length = target_max_length
         self.token_start = vocab.index("[START]")
