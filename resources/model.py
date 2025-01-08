@@ -9,6 +9,7 @@ from typing import List
 from utils.util_readingData import load_data
 from .createModel import init_model, init_tokenizers
 from resources.inference.generateSummary import GenerateSummary
+from .training.transformer.transformer import Transformer
 # local
 from .model_types import ModelTypes
 
@@ -37,7 +38,7 @@ class JaNoMiModel:
             params = json.load(f)
         titles, abstracts = load_data('Arxiv', params)
         self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts, params)
-        self._headliner = init_model(params)
+        self._headliner = init_model(Transformer, params)
         # TODO load model weights
         #self._headliner.load_weights(os.path.join("trained_models","model.weights.h5"))
 
@@ -126,7 +127,6 @@ class JaNoMiModel:
             params = json.load(f)
         summary = GenerateSummary(self._headliner,
                                   np.array(self._context_tokenizer.get_vocabulary()),
-                                  params["vocab_size"],
                                   self._context_tokenizer,
                                   params["target_max_length"])
         return summary.summarize(userInput)
