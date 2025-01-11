@@ -1,0 +1,7 @@
+datasets
+pandas
+scikit_learn
+tokenizers
+torch
+transformers[torch]
+wandb
