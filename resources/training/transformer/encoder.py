@@ -3,36 +3,44 @@
 # project: resources/encoder.py
 import tensorflow as tf
 from .feedForward import FeedForward
-from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePositionalEmbedding, RotaryPositionalEmbedding
+from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePositionalEmbedding, \
+    RotaryPositionalEmbedding
+
 
 def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer") -> tf.keras.Model:
     """
-    Implements one layer in the encoder.
-    This encoder incorporates the Multi Head Attention used in the Self Attention mechanism in the transformer
+    Implements one layer in the encoder with pre-normalization.
+    This encoder incorporates Multi-Head Attention and Feed-Forward layers with pre-normalization.
 
     :param num_heads: Number of attention heads
     :param embedding_dim: Dimension of the embedding
-    :param dropout: Dropout probability after two drop out layers
+    :param dropout: Dropout probability
     :param name: Name of the layer
-    :return:
+    :return: Keras Model representing the encoder layer
     """
     query = tf.keras.Input(shape=(None, embedding_dim))
 
-    self_attention = tf.keras.layers.MultiHeadAttention(num_heads, embedding_dim, dropout=dropout,
-                                                        name="SelfAttention")(
-        query=query,
-        value=query,
-        key=query
-    )
-    x = tf.keras.layers.Add()([query, self_attention])
-    x = tf.keras.layers.LayerNormalization()(x)
+    # Pre-normalization before Self-Attention
+    normalized_query = tf.keras.layers.LayerNormalization()(query)
+    self_attention = tf.keras.layers.MultiHeadAttention(
+        num_heads=num_heads,
+        key_dim=embedding_dim,
+        dropout=dropout,
+        name="SelfAttention"
+    )(query=normalized_query, value=normalized_query, key=normalized_query)
 
+    # Add residual connection
+    attention_output = tf.keras.layers.Add()([query, self_attention])
+
+    # Pre-normalization before Feed-Forward
+    normalized_attention_output = tf.keras.layers.LayerNormalization()(attention_output)
     name_ff = name.split("_")[0] + "_feed_forward_" + name.split("_")[-1]
-    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff)(x)
-    x = tf.keras.layers.Add()([x, feed_forward])
-    x = tf.keras.layers.LayerNormalization()(x)
+    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff)(normalized_attention_output)
 
-    model = tf.keras.Model(inputs=query, outputs=x, name=name)
+    # Add residual connection
+    output = tf.keras.layers.Add()([attention_output, feed_forward])
+
+    model = tf.keras.Model(inputs=query, outputs=output, name=name)
     return model
 
 

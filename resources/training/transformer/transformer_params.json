@@ -1,8 +1,5 @@
 {
-    "context_vocab_size": 5000,
-    "target_vocab_size": 5000,
-    "model_max_length": 250,
-    "embedding_dim": 64,
+    "embedding_dim": 4,
     "dropout": 0.1,
     "num_layers_encoder": 1,
     "num_layers_decoder": 1,

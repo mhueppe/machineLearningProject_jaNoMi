@@ -7,12 +7,21 @@ from collections import Counter
 from typing import Union, List, Callable
 import tensorflow as tf 
 import re
-import tensorflow_text as text
+import os
+from tokenizers import Tokenizer as HuggingFaceTokenizer
+from tokenizers.models import WordPiece
+from tokenizers.pre_tokenizers import Whitespace
+from tokenizers.trainers import WordPieceTrainer
+from typing import List, Union
 
 class Tokenizer:
     """
     Interface for implementing different tokenizer but still working with the training pipeline
     """
+    START = 2
+    END = 3
+    PAD = 0
+    UNK = 1
     def tokenize(self, text: str, **kwargs):
         """
         Tokenize the given string and return the tokens
@@ -38,24 +47,109 @@ class Tokenizer:
         Remove ugly chars and title
         :param t: string to prettify
         """
-        return re.sub(r"\s([.,;:?!])", r"\1", t).replace("[START]", "").replace("[END]", "").title()
+        return re.sub(r"\s([.,;:?!])", r"\1", t).replace(" ##", "").replace("##", "").replace("[START]", "").replace("[END]", "").title()
+
+class TokenizerBertHuggingFace(Tokenizer):
+    """
+    BERT-style tokenizer using Hugging Face's Tokenizer library.
+    """
+
+    def __init__(self, vocab_file: Union[str, None]):
+        # Initialize tokenizer with a WordPiece model
+        self._tokenizer = HuggingFaceTokenizer(WordPiece(unk_token="[UNK]"))
+        self._tokenizer.pre_tokenizer = Whitespace()
+
+        # Load vocabulary from file if provided
+        if vocab_file and os.path.isfile(vocab_file):
+            self._tokenizer = HuggingFaceTokenizer.from_file(vocab_file)
+            self.vocab = self._tokenizer.get_vocab()
+        else:
+            raise ValueError("A valid vocab file is required to initialize the tokenizer.")
+
+        # Ensure reserved tokens are in the vocabulary
+        self.PAD = self.vocab.get("[PAD]", None)
+        self.START = self.vocab.get("[START]", None)
+        self.END = self.vocab.get("[END]", None)
+
+        if None in (self.PAD, self.START, self.END):
+            raise ValueError("Reserved tokens [PAD], [START], or [END] are missing from the vocabulary.")
+        self.vocab = list(self.vocab.keys())
+
+    def tokenize(self, texts: List[str], frame: bool = True, max_length: int = 250,  **kwargs):
+        """
+        Tokenizes, pads, and truncates texts.
+        :param texts: List of input strings to tokenize.
+        :param frame: Add [START] and [END] tokens if True.
+        :return: Tokenized and padded sequences.
+        """
+        texts = [texts] if isinstance(texts, str) else texts
+        tokenized = []
+
+        for text in texts:
+            ids = self._tokenizer.encode(text).ids
+            if frame:
+                ids = [self.START] + ids + [self.END]
+            ids = ids[:max_length]  # Truncate to max length
+            ids += [self.PAD] * (max_length - len(ids))  # Pad to max length
+            tokenized.append(ids)
+
+        return tokenized
+
+    @staticmethod
+    def train(dataset: List[str], file_path: str = "vocab.json", vocab_size: int = 8000,
+              reserved_tokens: List[str] = None):
+        """
+        Train a tokenizer from scratch.
+        :param dataset: List of strings for training.
+        :param file_path: Path to save the trained tokenizer.
+        :param vocab_size: Vocabulary size.
+        :param reserved_tokens: List of reserved tokens like [PAD], [UNK], etc.
+        :return: Path to the saved tokenizer.
+        """
+        if reserved_tokens is None:
+            reserved_tokens = ["[PAD]", "[UNK]", "[START]", "[END]"]
+
+        # Initialize tokenizer and trainer
+        tokenizer = HuggingFaceTokenizer(WordPiece(unk_token="[UNK]"))
+        trainer = WordPieceTrainer(
+            vocab_size=vocab_size,
+            special_tokens=reserved_tokens,
+        )
+        tokenizer.pre_tokenizer = Whitespace()
+
+        # Train tokenizer
+        tokenizer.train_from_iterator(dataset, trainer)
+        tokenizer.save(file_path)
+        return file_path
+
+    def detokenize(self, tokens: List[int]) -> str:
+        """
+        Detokenizes a sequence of token IDs back to text.
+        :param tokens: List of token IDs to convert.
+        :return: Detokenized string.
+        """
+        if isinstance(tokens[0], list):
+            tokens = tokens[0]
+        if tf.is_tensor(tokens) and len(tokens.shape) > 1:
+            tokens = tokens[0]
+        return self._tokenizer.decode(tokens, skip_special_tokens=True)
 
 class TokenizerBert(Tokenizer):
     """
     Implement the bert tokenizer
     """
-    def __init__(self, vocab_file: Union[str, None],
-                 max_length: int = 250):
+    def __init__(self, vocab_file: Union[str, None]):
+        import tensorflow_text as text
+
         bert_tokenizer_params = dict(lower_case=True)
         self._tokenizer = text.BertTokenizer(vocab_file, **bert_tokenizer_params)
-        self._max_length = max_length
         self.vocab = open(vocab_file, "r", errors="ignore").read().split("\n")
 
-        self._PAD_TOKEN: int = self.vocab.index("[PAD]")
-        self._START_TOKEN: int = self.vocab.index("[START]")
-        self._END_TOKEN: int = self.vocab.index("[END]")
+        self.PAD: int = self.vocab.index("[PAD]")
+        self.START: int = self.vocab.index("[START]")
+        self.END: int = self.vocab.index("[END]")
 
-    def tokenize(self, texts: List[str], frame: bool = True, **kwargs):
+    def tokenize(self, texts: List[str], frame: bool = True, max_length: int = 300, **kwargs):
         """
         Tokenizes and pads/truncates texts using TensorFlow's BERT tokenizer.
         :param texts: Text to detokenize
@@ -67,13 +161,13 @@ class TokenizerBert(Tokenizer):
         if frame:
             tokenized = tf.concat(
                 [
-                    tf.cast(tf.fill((tokenized.nrows(), 1), self._START_TOKEN), tokenized.dtype),  # Prepend Start
+                    tf.cast(tf.fill((tokenized.nrows(), 1), self.START), tokenized.dtype),  # Prepend Start
                     tokenized,
-                    tf.cast(tf.fill((tokenized.nrows(), 1), self._END_TOKEN), tokenized.dtype),  # Append End
+                    tf.cast(tf.fill((tokenized.nrows(), 1), self.END), tokenized.dtype),  # Append End
                 ],
                 axis=1
             )
-        tokenized = tokenized.to_tensor(default_value=self._PAD_TOKEN, shape=[None, self._max_length])  # Pad to max_length
+        tokenized = tokenized.to_tensor(default_value=self.PAD, shape=[None, max_length])  # Pad to max_length
         return tokenized
 
 
@@ -90,7 +184,7 @@ class TokenizerBert(Tokenizer):
         from tensorflow_text.tools.wordpiece_vocab import bert_vocab_from_dataset as bert_vocab
         bert_tokenizer_params = dict(lower_case=True)
         if reserved_tokens is None:
-            reserved_tokens = ["[PAD]", "[UNK]", "[START]", "[END]"]
+            reserved_tokens = ["[PAD]", "[UNK]", "[START]", "[END]", "[ABSTRACT]", "[TITLE]"]
         bert_vocab_args = dict(
             # The target vocabulary size
             vocab_size=vocab_size,

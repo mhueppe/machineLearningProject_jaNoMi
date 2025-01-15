@@ -16,18 +16,18 @@ class GenerateSummary:
     """
     def __init__(self,
                  model,
-                 vocab: np.ndarray,
                  tokenizer: Tokenizer,
-                 target_max_length: int):
+                 target_max_length: int,
+                 context_max_length: int):
         self.model = model
-        self.vocab = list(vocab)
         self.tokenizer = tokenizer
         self.target_max_length = target_max_length
-        self.token_start = vocab.index("[START]")
-        self.token_end = vocab.index("[END]")
-        self.token_pad = vocab.index("[PAD]")
-        self.token_unk = vocab.index("[UNK]")
+        self.token_start = tokenizer.START
+        self.token_end = tokenizer.END
+        self.token_pad = tokenizer.PAD
+        self.token_unk = tokenizer.UNK
         self.tokenizer = tokenizer
+        self.context_max_length = context_max_length
         self.vocab_size = model.output_shape[-1]
         # Mask to discard [UNK] tokens and padding tokens
         self.mask = tf.scatter_nd(
@@ -36,7 +36,7 @@ class GenerateSummary:
             shape=(self.vocab_size,)
         )
 
-    @tf.function  # Transforming the function into an optimized computational graph to accelerate prediction
+    #@tf.function  # Transforming the function into an optimized computational graph to accelerate prediction
     def generate_next_token(self, encoder_input, output):
         logits = self.model([encoder_input, output])
         logits = logits[:, -1, :]
@@ -44,19 +44,74 @@ class GenerateSummary:
         next_token = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
         return next_token[None, :]
 
-    def summarize(self, text: str) -> str:
-        encoder_input = self.tokenizer.tokenize(text)
-        output = tf.constant(self.token_start, shape=(1, 1))
+    def beam_search(self, encoder_input, beam_width: int = 3, ngram_size: int = 3):
+        # Initialize variables
+        initial_output = tf.constant(self.token_start, shape=(1, 1))
+        sequences = [(initial_output, 0)]  # Each sequence is (tokens, score)
 
-        for _ in range(self.target_max_length - 1):
-            next_token = self.generate_next_token(encoder_input, output)
-            if next_token == self.token_end:
-                break
+        greedy_sequence = None  # Greedy result (maximum likelihood)
 
-            output = tf.concat([output, next_token], axis=-1)
+        for step in range(self.target_max_length - 1):
+            all_candidates = []
 
-        return self.tokenizer.detokenize(output)
+            # Expand each sequence
+            for seq, score in sequences:
+                if not tf.is_tensor(encoder_input):
+                    encoder_input = tf.convert_to_tensor(encoder_input, dtype=tf.int32)
+                if not tf.is_tensor(seq):
+                    seq = tf.convert_to_tensor(seq, dtype=tf.int32)
 
+                logits = self.model([encoder_input, seq])
+                logits = logits[:, -1, :]  # Get logits for the last token
+                logits += self.mask
+
+                # Greedy sequence generation (maximum likelihood)
+                if step == 0 and greedy_sequence is None:
+                    greedy_token = tf.argmax(logits, axis=-1, output_type=tf.int32)
+                    greedy_sequence = tf.concat([seq, [greedy_token]], axis=-1)
+
+                # Apply softmax and get top beam_width tokens
+                top_k_probs, top_k_indices = tf.nn.top_k(tf.nn.softmax(logits, axis=-1), k=beam_width)
+
+                # Create new candidates
+                for i in range(beam_width):
+                    next_token = tf.cast(top_k_indices[0, i], tf.int32)
+                    next_score = score - np.log(top_k_probs[0, i])  # Negative log probability as score
+
+                    # Prevent duplicate tokens within 5-token window
+                    last_tokens = seq[0, -5:]
+                    if next_token in last_tokens:
+                        continue
+
+                    # Enforce n-gram diversity
+                    token_seq = seq[0].numpy()
+                    ngrams = [tuple(token_seq[j:j + ngram_size]) for j in range(len(token_seq) - ngram_size + 1)]
+                    if tuple(token_seq[-(ngram_size - 1):]) + (next_token.numpy(),) in ngrams:
+                        continue
+
+                    new_seq = tf.concat([seq, next_token[None, None]], axis=-1)
+                    all_candidates.append((new_seq, next_score))
+
+                    # Select the best beam_width candidates
+                sequences = sorted(all_candidates, key=lambda x: x[1])[:beam_width]
+
+                # Stop if all sequences end with the token_end
+                if all(tf.reduce_all(seq[:, -1] == self.token_end) for seq, _ in sequences):
+                    break
+
+            # Prepare output sequences
+            decoded_sequences = [self.tokenizer.detokenize(seq[0].numpy()) for seq, _ in sequences]
+            if greedy_sequence is not None:
+                greedy_output = self.tokenizer.detokenize(greedy_sequence[0].numpy())
+                decoded_sequences.insert(0, greedy_output)
+
+            return decoded_sequences
+
+    def summarize(self, text: str, beam_width: int = 3) -> list:
+        encoder_input = self.tokenizer.tokenize(preprocessing(text),
+                                                max_length=self.context_max_length)
+        outputs = self.beam_search(encoder_input, beam_width=beam_width)
+        return outputs
 
 
 # Function to generate summaries and display them in HTML format

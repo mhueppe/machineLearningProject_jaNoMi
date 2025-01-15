@@ -44,29 +44,31 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
         self.lang = "en"  # Language for BERTScore, default is English
 
     def on_epoch_end(self, epoch, logs=None):
+        beam_width = 3
         generated_summaries = []
         for text in self.context:
-            summary = self.titleGenerator.summarize(text)
-            generated_summaries.append(summary)
+            summaries = self.titleGenerator.summarize(text, beam_width=beam_width)
+            generated_summaries.append(summaries)
 
         # Create a WandB Table
         cider_scores = []
         rouge_scores = []
         bleu_scores = []
         repeated_words_scores = []
-        table = wandb.Table(columns=["Input Text", "Generated Summary", "Reference Title", "Cider score", "Rouge",
+        title_cols = [f"Generated Title {i}" for i in range(beam_width)]
+        table = wandb.Table(columns=["Input Text", "Reference Title"] + title_cols + ["Cider score", "Rouge",
                                      "Bleu score", "Repeated Words"])
-        for input_text, generated_summary, reference_title in zip(
+        for input_text, summaries, reference_title in zip(
                 self.context, generated_summaries, self.reference
         ):
-            cider_score = compute_cider(reference_title, generated_summary)
-            rouge_score = compute_rouge(reference_title, generated_summary)["rouge2"].fmeasure
-            bleu_score = compute_bleu(reference_title, generated_summary)
-            repeated_words_score = compute_repeated_words(generated_summary)
+            cider_score = np.mean([compute_cider(reference_title, sum_gen) for sum_gen in summaries])
+            rouge_score = np.mean([compute_rouge(reference_title, sum_gen)["rouge2"].fmeasure for sum_gen in summaries])
+            bleu_score = np.mean([compute_bleu(reference_title,  sum_gen) for sum_gen in summaries])
+            repeated_words_score = np.mean([compute_repeated_words(sum_gen) for sum_gen in summaries])
 
             # add input, output, label and scores to table
 
-            table.add_data(str(input_text), str(generated_summary), str(reference_title), cider_score, rouge_score, bleu_score,
+            table.add_data(str(input_text), str(reference_title), *summaries, cider_score, rouge_score, bleu_score,
                            repeated_words_score)
 
             cider_scores.append(cider_score)

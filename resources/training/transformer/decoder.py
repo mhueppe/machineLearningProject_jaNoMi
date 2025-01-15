@@ -7,45 +7,62 @@ from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePo
 
 def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer") -> tf.keras.Model:
     """
-    Implements one layer in the Decoder.
-    This encoder incorporates the Multi Head Attention used in the Causal Self Attention
-    and the Cross Attention mechanism in the transformer.
+    Implements one layer in the Decoder with pre-normalization.
+    This decoder incorporates Causal Self-Attention, Cross-Attention, and a Feed-Forward network.
 
     :param num_heads: Number of attention heads
     :param embedding_dim: Dimension of the embedding
-    :param dropout: Dropout probability after two drop out layers
+    :param dropout: Dropout probability
     :param name: Name of the layer
-    :return:
+    :return: Keras Model representing the decoder layer
     """
     query = tf.keras.Input(shape=(None, embedding_dim))
     encoder_output = tf.keras.Input(shape=(None, embedding_dim), name="encoder_output")
 
-    causal_self_attention = tf.keras.layers.MultiHeadAttention(num_heads, embedding_dim, dropout=dropout,
-                                                               name="CausalSelfAttention")(
-        query=query,
-        value=query,
-        key=query,
-        use_causal_mask=True  # A mask that prevents the layer from attending to future tokens in the sequence
+    # Pre-normalization before Causal Self-Attention
+    normalized_query = tf.keras.layers.LayerNormalization()(query)
+    causal_self_attention = tf.keras.layers.MultiHeadAttention(
+        num_heads=num_heads,
+        key_dim=embedding_dim,
+        dropout=dropout,
+        name="CausalSelfAttention"
+    )(
+        query=normalized_query,
+        value=normalized_query,
+        key=normalized_query,
+        use_causal_mask=True  # Prevents attention to future tokens
     )
-    x = tf.keras.layers.Add()([query, causal_self_attention])
-    x = tf.keras.layers.LayerNormalization()(x)
 
-    cross_attention = tf.keras.layers.MultiHeadAttention(num_heads, embedding_dim, dropout=dropout,
-                                                         name="CrossAttention")(
-        query=x,
+    # Add residual connection
+    self_attention_output = tf.keras.layers.Add()([query, causal_self_attention])
+
+    # Pre-normalization before Cross-Attention
+    normalized_self_attention_output = tf.keras.layers.LayerNormalization()(self_attention_output)
+    cross_attention = tf.keras.layers.MultiHeadAttention(
+        num_heads=num_heads,
+        key_dim=embedding_dim,
+        dropout=dropout,
+        name="CrossAttention"
+    )(
+        query=normalized_self_attention_output,
         value=encoder_output,
         key=encoder_output
     )
-    x = tf.keras.layers.Add()([x, cross_attention])
-    x = tf.keras.layers.LayerNormalization()(x)
 
+    # Add residual connection
+    cross_attention_output = tf.keras.layers.Add()([self_attention_output, cross_attention])
+
+    # Pre-normalization before Feed-Forward
+    normalized_cross_attention_output = tf.keras.layers.LayerNormalization()(cross_attention_output)
     name_ff = name.split("_")[0] + "_feed_forward_" + name.split("_")[-1]
-    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff)(x)
-    x = tf.keras.layers.Add()([x, feed_forward])
-    x = tf.keras.layers.LayerNormalization()(x)
+    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff)(normalized_cross_attention_output)
 
-    model = tf.keras.Model(inputs=[query, encoder_output], outputs=x, name=name)
+    # Add residual connection
+    output = tf.keras.layers.Add()([cross_attention_output, feed_forward])
+
+    model = tf.keras.Model(inputs=[query, encoder_output], outputs=output, name=name)
     return model
+
 
 
 def Decoder(embedding, model_max_length, embedding_dim, dropout, num_layers, num_heads, positionalEmbedding) -> tf.keras.Model:

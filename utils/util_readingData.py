@@ -23,7 +23,7 @@ def readingDataACL(path: str) -> Tuple[List[str], List[str]]:
     return zip(*papers)
 
 
-def dataGenerator(file_path, inputs_idx: int = 1, targets_idx: int = 2):
+def dataGenerator(file_path, inputs_idx: int = 2, targets_idx: int = 1):
     """
     Reads the csv file line by line so that the
     :param targets_idx: Index of target column
@@ -31,11 +31,13 @@ def dataGenerator(file_path, inputs_idx: int = 1, targets_idx: int = 2):
     :param file_path:
     :return:
     """
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.reader(f, delimiter=",")
-        _ = reader.__next__()
-        for i, line in enumerate(reader):
-            yield line[1], line[2]
+    while True:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f, delimiter=",")
+                _ = reader.__next__()
+                for i, line in enumerate(reader):
+                    yield line[inputs_idx], line[targets_idx]
+
 
 
 def readingDataArxiv(path: str, nrows: int = None) -> Tuple[List[str], List[str]]:

@@ -10,8 +10,8 @@ from typing import Tuple, List
 from resources.createModel import init_model
 from resources.training.train_logging import SummarizationCallback, WandbLoggingCallback
 from resources.inference.generateSummary import GenerateSummary
-from resources.preprocessing.dataPreprocessing import tokenizeData
-from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord, Tokenizer
+from resources.preprocessing.dataPreprocessing import tokenizeData, preprocessing
+from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord, Tokenizer, TokenizerBertHuggingFace
 from resources.training.rnn.rnn import RNN
 from resources.training.transformer.transformer import Transformer
 from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv, dataGenerator
@@ -44,7 +44,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         history_path = os.path.join(model_dir, "history.json")
         summary_path = os.path.join(model_dir, "summary.txt")
         # Hyperparameters to optimize
-        wandb.init(project="transformer_optimization", name=model_name)
+        wandb.init(project="transformer_optimization", name=model_name, settings=wandb.Settings(init_timeout=120))
         model_settings.update(settings)
         model_settings["target_vocab_size"] = model_settings.get("vocab_size", 5000)
         model_settings["context_vocab_size"] = model_settings.get("vocab_size", 5000)
@@ -93,18 +93,32 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         model_summary_str = string_io.getvalue()
         wandb.log({"model_summary": model_summary_str})
         target_max_length = settings["target_max_length"]
-        titleGenerator = GenerateSummary(model, tokenizer.vocab, tokenizer, target_max_length)
-        val_abs = evaluationBatch[0]
-        val_titles = evaluationBatch[1]
+        titleGenerator = GenerateSummary(model, tokenizer,
+                                         target_max_length, context_max_length)
+        val_context = evaluationBatch[0]
+        val_reference = evaluationBatch[1]
         summarizationCB = SummarizationCallback(
             titleGenerator=titleGenerator,
-            context=val_abs[:15],  # Choose a few texts for logging
-            reference=val_titles[:15]  # Their corresponding titles
+            context=val_context[:15],  # Choose a few texts for logging
+            reference=val_reference[:15]  # Their corresponding titles
         )
-
+        titleGenerator.summarize("Calculation of prompt diphoton production cross sections at "
+                                 "Tevatron and LHC energies. A fully differential calculation in "
+                                 "perturbative quantum chromodynamics is presented for the production "
+                                 "of massive photon pairs at hadron colliders. All next-to-leading order"
+                                 "perturbative contributions from quark-antiquark, gluon-(anti)quark, and gluon-gluon "
+                                 "subprocesses are included, as well as all-orders resummation of initial-state gluon "
+                                 "radiation valid at next-to-next-to-leading logarithmic accuracy. The region of "
+                                 "phase space is specified in which the calculation is most reliable. Good agreement "
+                                 "is demonstrated with data from the Fermilab Tevatron, and predictions are made for "
+                                 "more detailed tests with CDF and DO data. Predictions are shown for distributions "
+                                 "of diphoton pairs produced at the energy of the Large Hadron Collider (LHC). "
+                                 "Distributions of the diphoton pairs from the decay of a Higgs boson are contrasted "
+                                 "with those produced from QCD processes at the LHC, showing that enhanced "
+                                 "sensitivity to the signal can be obtained with judicious selection of events.")
         # Train the model
         steps_per_epoch = settings["steps_per_epoch"]
-        validation_steps = settings["validation_steps"]
+        # validation_steps = settings["validation_steps"]
         epochs = settings["epochs"]
 
         history = model.fit(train_dataset, steps_per_epoch=steps_per_epoch,
@@ -130,6 +144,8 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         wandb.finish()
 
 
+import csv
+
 if __name__ == '__main__':
     # Data loading
     train_params = json.load(open("train_params.json", "r"))
@@ -142,6 +158,8 @@ if __name__ == '__main__':
     validation_steps = train_params["validation_steps"]
     epochs = train_params["epochs"]
     nTrials = train_params["nTrials"]
+    input_idx = train_params["input_idx"]
+    label_idx = train_params["label_idx"]
 
     nEvaluationSamples = train_params["nEvaluationSamples"]
     context_min_length = train_params["context_min_length"]
@@ -152,54 +170,137 @@ if __name__ == '__main__':
     vocab_size = train_params["vocab_size"]
 
     # Mask to discard [UNK] tokens and padding tokens
-
+    model_settings = json.load(open(train_params["model_params_path"]))
+    nEncoderLayer = model_settings.get("num_layers_encoder", 1)
+    decoderOnly = nEncoderLayer == 0
     vocab_exists = os.path.isfile(train_params["tokenizer_vocab_path"])
+
+    import re
+
+
+    def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1):
+        """
+        Reads the csv file line by line so that the
+        :param targets_idx: Index of target column
+        :param inputs_idx: Index of input column
+        :param file_path:
+        :return:
+        """
+        while True:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.reader(f, delimiter=",")
+                _ = reader.__next__()
+                for i, line in enumerate(reader):
+                    try:
+                        input_s = line[inputs_idx]
+                        target_s = line[targets_idx]
+                        p_input_s = preprocessing(input_s)
+                        p_target_s = preprocessing(target_s)
+                        if len(p_input_s.split()) < context_min_length or len(p_target_s.split()) < target_min_length:
+                            continue
+                        yield p_input_s, p_target_s
+                    except Exception as e:
+                        continue
+
+
     train_dataset = tf.data.Dataset.from_generator(
-        dataGenerator,
+        dataGenerator_preprocessed,
         output_signature=(tf.TensorSpec(shape=(), dtype=tf.string),
                           tf.TensorSpec(shape=(), dtype=tf.string)),
-        args=(path_train,)  # You can change "abstract" to "title" if needed
+        args=(path_train, input_idx, label_idx)  # You can change "abstract" to "title" if needed
     )
     val_dataset = tf.data.Dataset.from_generator(
-        dataGenerator,
+        dataGenerator_preprocessed,
         output_signature=(tf.TensorSpec(shape=(), dtype=tf.string),
                           tf.TensorSpec(shape=(), dtype=tf.string)),
-        args=(path_val,)  # You can change "abstract" to "title" if needed
+        args=(path_val, input_idx, label_idx)  # You can change "abstract" to "title" if needed
     )
-    val_titles = []
-    val_abs = []
-    for title, abstract in val_dataset.take(batch_size).as_numpy_iterator():
-        val_titles.append(title)
-        val_abs.append(abstract)
+    val_reference = []
+    val_context = []
+    for sample in val_dataset.take(batch_size).as_numpy_iterator():
+        val_context.append(sample[0])
+        val_reference.append(sample[1])
+
     if train_params["tokenizer"] == "bert":
         if not vocab_exists:
             print("No existing vocabulary found. Create new one.")
             TokenizerBert.train(train_dataset, file_path=train_params["tokenizer_vocab_path"],
                                 vocab_size=vocab_size)
-        tokenizer = TokenizerBert(train_params["tokenizer_vocab_path"], target_max_length)
+        tokenizer = TokenizerBert(train_params["tokenizer_vocab_path"])
     elif train_params["tokenizer"] == "word":
         if not vocab_exists:
             train_dataset = train_dataset.repeat()
-            TokenizerWord.train([title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
-                                file_path=train_params["tokenizer_vocab_path"],
-                                vocab_size=vocab_size)
+            TokenizerWord.train(
+                [title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
+                file_path=train_params["tokenizer_vocab_path"],
+                vocab_size=vocab_size)
         tokenizer = TokenizerWord(train_params["tokenizer_vocab_path"], target_max_length)
+    elif train_params["tokenizer"] == "huggingFace":
+        if not vocab_exists:
+            train_dataset = train_dataset.repeat()
+            TokenizerBertHuggingFace.train(
+                [title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
+                file_path=train_params["tokenizer_vocab_path"])
+        tokenizer = TokenizerBertHuggingFace(train_params["tokenizer_vocab_path"])
+
+
+        def dataGenerator_tokenized(file_path, inputs_idx: int = 2, targets_idx: int = 1):
+            """
+            Reads the csv file line by line so that the
+            :param targets_idx: Index of target column
+            :param inputs_idx: Index of input column
+            :param file_path:
+            :return:
+            """
+            dataGen = dataGenerator_preprocessed(file_path, inputs_idx, targets_idx)
+            for input_s, target_s in dataGen:
+                yield tokenizer.tokenize(input_s, frame=True, max_length=context_max_length)[0], \
+                    tokenizer.tokenize(target_s, frame=True, max_length=target_max_length)[0]
+
+
+        train_dataset = tf.data.Dataset.from_generator(
+            dataGenerator_tokenized,
+            output_signature=(tf.TensorSpec(shape=context_max_length, dtype=tf.int32),
+                              tf.TensorSpec(shape=target_max_length, dtype=tf.int32)),
+            args=(path_train, input_idx, label_idx)
+        )
+        val_dataset = tf.data.Dataset.from_generator(
+            dataGenerator_tokenized,
+            output_signature=(tf.TensorSpec(shape=context_max_length, dtype=tf.int32),
+                              tf.TensorSpec(shape=target_max_length, dtype=tf.int32)),
+            args=(path_val, input_idx, label_idx)
+        )
     else:
         raise KeyError
 
+
     # Preprocessing train and validation datasets
+    # TODO: Concatenate context and target
+    def concatenateContextTarget(contexts, targets):
+        if not decoderOnly:
+            return contexts, targets
+        else:
+            return contexts + targets
+
+
+    def tokenization(contexts, targets):
+        # dynamic tokenizer
+        if train_params["tokenizer"] in ["bert", "word"]:
+            contexts, targets = tokenizeData(contexts, targets,
+                                             tokenizer,
+                                             context_max_length, target_max_length)
+        targets_in = targets[:, :-1]
+        targets_out = targets[:, 1:]
+        return (contexts, targets_in), targets_out
+
 
     train_dataset = train_dataset.batch(batch_size).map(
-        lambda contexts, targets: tokenizeData(contexts, targets,
-                                               tokenizer,
-                                               context_max_length, target_max_length)
-    ).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
+        tokenization, tf.data.AUTOTUNE
+    ).map(concatenateContextTarget, tf.data.AUTOTUNE).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
     val_dataset = val_dataset.batch(batch_size).map(
-        lambda contexts, targets: tokenizeData(contexts, targets,
-                                               tokenizer,
-                                               context_max_length, target_max_length)
-    ).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
+        tokenization
+    ).map(concatenateContextTarget).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
     train_model(train_params, tokenizer, train_dataset, val_dataset,
-                evaluationBatch=(val_abs[:batch_size], val_titles[:batch_size]))
+                evaluationBatch=(val_context[:batch_size], val_reference[:batch_size]))

@@ -8,20 +8,7 @@ import tensorflow as tf
 import csv
 import random
 import numpy as np
-
-
-def dataGenerator(file_path):
-    """
-    Generate data by reading each sample from file_path
-    :param file_path: path to read from
-    :return:
-    """
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-        reader = csv.reader(f, delimiter=",")
-        _ = reader.__next__()
-        for i, line in enumerate(reader):
-            yield line[1], line[2]
-
+import re
 
 def preprocessing(text: str) -> str:
     """
@@ -30,23 +17,22 @@ def preprocessing(text: str) -> str:
     :return: The preprocess text
     """
     # Convert all text to lowercase
-    text = tf.strings.lower(text)
-    # Removing line breaks
-    text = tf.strings.regex_replace(text, r"\n+", " ")
+    text = text.lower()
+    # Remove line breaks
+    text = re.sub(r"\n+", " ", text)
     # Remove hyperlinks
-    text = tf.strings.regex_replace(text, r"https?://[^\s\n\r]+|www\.[^\s\n\r]+", "")
+    text = re.sub(r"https?://[^\s\n\r]+|www\.[^\s\n\r]+", "", text)
     # Remove Twitter usernames and email addresses
-    text = tf.strings.regex_replace(text, r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", "")
-    text = tf.strings.regex_replace(text, r"@\w+", "")
+    text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", "", text)
+    text = re.sub(r"@\w+", "", text)
+    # Replace specific punctuation marks for compound words
+    text = re.sub(r"[-_/]", " ", text)
     # Keep only alphabetic characters and certain punctuation marks
-    text = tf.strings.regex_replace(text, r"[-—_/]", " ")  # For compound words
-    text = tf.strings.regex_replace(text, r"[^ a-z.,;:?!]", "")
+    text = re.sub(r"[^ a-z.,;:?!]", "", text)
     # Add spaces around punctuation
-    text = tf.strings.regex_replace(text, r"[.,;:?!]", r" \0 ")
-    # Remove all redundant white spaces
-    text = tf.strings.regex_replace(tf.strings.strip(text), r"\s+", " ")
-    # Add start and end tokens to the text
-    text = tf.strings.join(["[START]", text, "[END]"], separator=" ")
+    text = re.sub(r"([.,;:?!])", r" \1 ", text)
+    # Remove redundant white spaces
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
@@ -61,11 +47,9 @@ def tokenizeData(contexts, targets, tokenizer, max_len_context, max_len_target):
     :param max_len_context:
     :param max_len_target:
     """
-    tokenized_contexts = tokenizer.tokenize(contexts, frame=False, max_length=max_len_context)
+    tokenized_contexts = tokenizer.tokenize(contexts, frame=True, max_length=max_len_context)
     tokenized_targets = tokenizer.tokenize(targets, frame=True, max_length=max_len_target)
-    targets_in = tokenized_targets[:, :-1]
-    targets_out = tokenized_targets[:, 1:]
-    return (tokenized_contexts, targets_in), targets_out
+    return tokenized_contexts, tokenized_targets
 
 
 # Create datasets
@@ -81,6 +65,7 @@ def create_dataset(contexts, targets,
     tokenized_contexts, tokenized_targets = tokenizeData(
         contexts, targets, tokenizer
     )
+    # TODO: concatenate the abstract and the input for the decoder only architecture
     dataset = tf.data.Dataset.from_tensor_slices((tokenized_contexts, tokenized_targets))
     return dataset
 
