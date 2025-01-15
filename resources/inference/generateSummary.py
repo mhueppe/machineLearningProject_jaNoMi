@@ -36,12 +36,19 @@ class GenerateSummary:
             shape=(self.vocab_size,)
         )
 
-    #@tf.function  # Transforming the function into an optimized computational graph to accelerate prediction
+    @tf.function  # Transforming the function into an optimized computational graph to accelerate prediction
     def generate_next_token(self, encoder_input, output):
         logits = self.model([encoder_input, output])
         logits = logits[:, -1, :]
         logits += self.mask
-        next_token = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
+        # deterministically chooses the token with the highest probability
+        # next_token = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
+
+        # probabilistically chooses the token based on its probability
+        next_token = tf.random.categorical(logits, dtype=tf.int32)
+        while next_token in output[-4:]:
+            # resample if the same token has already been generated in one of the last 4 tokens
+            next_token = tf.random.categorical(logits, dtype=tf.int32)
         return next_token[None, :]
 
     def beam_search(self, encoder_input, beam_width: int = 3, ngram_size: int = 3):
@@ -98,7 +105,6 @@ class GenerateSummary:
                 # Stop if all sequences end with the token_end
                 if all(tf.reduce_all(seq[:, -1] == self.token_end) for seq, _ in sequences):
                     break
-
             # Prepare output sequences
             decoded_sequences = [self.tokenizer.detokenize(seq[0].numpy()) for seq, _ in sequences]
             if greedy_sequence is not None:
