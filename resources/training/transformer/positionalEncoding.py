@@ -5,11 +5,13 @@ import tensorflow as tf
 from tensorflow.keras.utils import register_keras_serializable
 import numpy as np
 
+
 @register_keras_serializable()
 class PositionalEmbedding(tf.keras.layers.Layer):
     """
     Implement the Positional Embedding needed in Transformers
     """
+
     def __init__(self, model_max_length, embedding_dim):
         super().__init__()
         self.pos_encoding = self.positional_encoding(model_max_length, embedding_dim)
@@ -34,11 +36,13 @@ class PositionalEmbedding(tf.keras.layers.Layer):
 
         return pos_encoding
 
+
 @tf.keras.utils.register_keras_serializable()
 class RelativePositionalEmbedding(tf.keras.layers.Layer):
     """
     Implement the Relative Position Embedding for Transformers.
     """
+
     def __init__(self, model_max_length, embedding_dim):
         super().__init__()
         self.model_max_length = model_max_length
@@ -69,11 +73,13 @@ class RelativePositionalEmbedding(tf.keras.layers.Layer):
         relative_positions = range_vec[:, None] - range_vec[None, :] + (self.model_max_length - 1)
         return relative_positions
 
+
 @tf.keras.utils.register_keras_serializable()
 class SegmentEncoding(tf.keras.layers.Layer):
     """
     Implement Segment Encoding for distinguishing different input segments.
     """
+
     def __init__(self, num_segments, embedding_dim):
         super().__init__()
         self.num_segments = num_segments
@@ -100,11 +106,13 @@ class SegmentEncoding(tf.keras.layers.Layer):
         # Add segment encodings to input embeddings
         return x + segment_encodings
 
+
 @tf.keras.utils.register_keras_serializable()
 class RotaryPositionalEmbedding(tf.keras.layers.Layer):
     """
     Implement the Rotary Position Embedding (ROPE) needed in Transformers.
     """
+
     def __init__(self, model_max_length, embedding_dim):
         super().__init__()
         self.model_max_length = model_max_length

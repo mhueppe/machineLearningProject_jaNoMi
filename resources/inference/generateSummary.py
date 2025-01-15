@@ -106,9 +106,9 @@ class GenerateSummary:
                 if all(tf.reduce_all(seq[:, -1] == self.token_end) for seq, _ in sequences):
                     break
             # Prepare output sequences
-            decoded_sequences = [self.tokenizer.detokenize(seq[0].numpy()) for seq, _ in sequences]
+            decoded_sequences = [self.tokenizer.detokenize(seq) for seq, _ in sequences]
             if greedy_sequence is not None:
-                greedy_output = self.tokenizer.detokenize(greedy_sequence[0].numpy())
+                greedy_output = self.tokenizer.detokenize(greedy_sequence)
                 decoded_sequences.insert(0, greedy_output)
 
             return decoded_sequences
@@ -116,7 +116,7 @@ class GenerateSummary:
     def summarize(self, text: str, beam_width: int = 3) -> list:
         encoder_input = self.tokenizer.tokenize(preprocessing(text),
                                                 max_length=self.context_max_length)
-        outputs = self.beam_search(encoder_input, beam_width=beam_width)
+        outputs = self.beam_search(encoder_input, beam_width=max(1, beam_width-1))
         return outputs
 
 

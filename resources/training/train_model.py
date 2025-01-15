@@ -176,8 +176,6 @@ if __name__ == '__main__':
     vocab_exists = os.path.isfile(train_params["tokenizer_vocab_path"])
 
     import re
-
-
     def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1):
         """
         Reads the csv file line by line so that the
@@ -194,8 +192,12 @@ if __name__ == '__main__':
                     try:
                         input_s = line[inputs_idx]
                         target_s = line[targets_idx]
-                        p_input_s = preprocessing(input_s)
-                        p_target_s = preprocessing(target_s)
+                        yield input_s, target_s
+                        continue
+                        # p_input_s = preprocessing(input_s)
+                        # p_target_s = preprocessing(target_s)
+                        p_input_s = input_s
+                        p_target_s = target_s
                         if len(p_input_s.split()) < context_min_length or len(p_target_s.split()) < target_min_length:
                             continue
                         yield p_input_s, p_target_s
