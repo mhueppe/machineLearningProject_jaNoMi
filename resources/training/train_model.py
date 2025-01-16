@@ -194,7 +194,7 @@ if __name__ == '__main__':
                         target_s = line[targets_idx]
                         yield input_s, target_s
                         continue
-                        # p_input_s = preprocessing(input_s)
+                        p_input_s = preprocessing(input_s)
                         # p_target_s = preprocessing(target_s)
                         p_input_s = input_s
                         p_target_s = target_s

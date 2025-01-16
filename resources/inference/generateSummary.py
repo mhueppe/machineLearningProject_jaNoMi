@@ -10,25 +10,23 @@ from resources.preprocessing.tokenizer import Tokenizer
 from IPython.core.display import HTML
 from resources.preprocessing.dataPreprocessing import preprocessing
 
+
 class GenerateSummary:
     """
     Class for generating titles
     """
-    def __init__(self,
-                 model,
-                 tokenizer: Tokenizer,
-                 target_max_length: int,
-                 context_max_length: int):
+
+    def __init__(self, model, tokenizer: Tokenizer, target_max_length: int, context_max_length: int):
         self.model = model
         self.tokenizer = tokenizer
         self.target_max_length = target_max_length
+        self.context_max_length = context_max_length
+
         self.token_start = tokenizer.START
         self.token_end = tokenizer.END
         self.token_pad = tokenizer.PAD
         self.token_unk = tokenizer.UNK
-        self.tokenizer = tokenizer
-        self.context_max_length = context_max_length
-        self.vocab_size = model.output_shape[-1]
+        self.vocab_size = model.output_shape[0][-1] if isinstance(model.output_shape, list) else model.output_shape[-1]
         # Mask to discard [UNK] tokens and padding tokens
         self.mask = tf.scatter_nd(
             indices=[[self.token_pad], [self.token_unk]],
@@ -36,88 +34,67 @@ class GenerateSummary:
             shape=(self.vocab_size,)
         )
 
-    @tf.function  # Transforming the function into an optimized computational graph to accelerate prediction
-    def generate_next_token(self, encoder_input, output):
-        logits = self.model([encoder_input, output])
+    def generate_next_token_probs(self, encoder_input, output, temperature):
+        logits, attention_scores = self.model([tf.convert_to_tensor(encoder_input, dtype=tf.int32), output])
         logits = logits[:, -1, :]
         logits += self.mask
-        # deterministically chooses the token with the highest probability
-        # next_token = tf.cast(tf.argmax(logits, axis=-1), tf.int32)
+        probs = tf.nn.softmax(logits / temperature, axis=-1)
+        return probs, attention_scores
 
-        # probabilistically chooses the token based on its probability
-        next_token = tf.random.categorical(logits, dtype=tf.int32)
-        while next_token in output[-4:]:
-            # resample if the same token has already been generated in one of the last 4 tokens
-            next_token = tf.random.categorical(logits, dtype=tf.int32)
-        return next_token[None, :]
+    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3, return_attention_scores: bool = False):
+        encoder_input = self.tokenizer.tokenize(text, max_length=self.context_max_length)
+        start_token = tf.constant(self.token_start, shape=(1, 1))
 
-    def beam_search(self, encoder_input, beam_width: int = 3, ngram_size: int = 3):
-        # Initialize variables
-        initial_output = tf.constant(self.token_start, shape=(1, 1))
-        sequences = [(initial_output, 0)]  # Each sequence is (tokens, score)
+        # Initialize beams with the start token and zero score
+        beams = [(start_token, 0)]  # List of tuples: (sequence, score)
+        completed_beams = []
 
-        greedy_sequence = None  # Greedy result (maximum likelihood)
+        for _ in range(self.target_max_length - 1):
+            new_beams = []
+            for seq, score in beams:
+                # Generate probabilities for the next token
+                probs, attention_scores = self.generate_next_token_probs(encoder_input, seq, temperature)
+                top_probs, top_tokens = tf.math.top_k(probs, k=beam_width)
 
-        for step in range(self.target_max_length - 1):
-            all_candidates = []
-
-            # Expand each sequence
-            for seq, score in sequences:
-                if not tf.is_tensor(encoder_input):
-                    encoder_input = tf.convert_to_tensor(encoder_input, dtype=tf.int32)
-                if not tf.is_tensor(seq):
-                    seq = tf.convert_to_tensor(seq, dtype=tf.int32)
-
-                logits = self.model([encoder_input, seq])
-                logits = logits[:, -1, :]  # Get logits for the last token
-                logits += self.mask
-
-                # Greedy sequence generation (maximum likelihood)
-                if step == 0 and greedy_sequence is None:
-                    greedy_token = tf.argmax(logits, axis=-1, output_type=tf.int32)
-                    greedy_sequence = tf.concat([seq, [greedy_token]], axis=-1)
-
-                # Apply softmax and get top beam_width tokens
-                top_k_probs, top_k_indices = tf.nn.top_k(tf.nn.softmax(logits, axis=-1), k=beam_width)
-
-                # Create new candidates
+                # Extend each beam with the top tokens
                 for i in range(beam_width):
-                    next_token = tf.cast(top_k_indices[0, i], tf.int32)
-                    next_score = score - np.log(top_k_probs[0, i])  # Negative log probability as score
+                    token = tf.expand_dims(top_tokens[0, i], axis=0)
+                    new_seq = tf.concat([seq, tf.expand_dims(token, axis=0)], axis=-1)
+                    new_score = score + tf.math.log(top_probs[0, i])  # Log probabilities for numerical stability
 
-                    # Prevent duplicate tokens within 5-token window
-                    last_tokens = seq[0, -5:]
-                    if next_token in last_tokens:
-                        continue
+                    if token == self.token_end:
+                        completed_beams.append(
+                            (new_seq, new_score, attention_scores) if return_attention_scores else (new_seq, new_score))
+                    else:
+                        new_beams.append((new_seq, new_score))
 
-                    # Enforce n-gram diversity
-                    token_seq = seq[0].numpy()
-                    ngrams = [tuple(token_seq[j:j + ngram_size]) for j in range(len(token_seq) - ngram_size + 1)]
-                    if tuple(token_seq[-(ngram_size - 1):]) + (next_token.numpy(),) in ngrams:
-                        continue
+            # Sort new beams by score and keep the top `beam_width`
+            beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_width]
 
-                    new_seq = tf.concat([seq, next_token[None, None]], axis=-1)
-                    all_candidates.append((new_seq, next_score))
+            # Break if all beams are completed
+            if not new_beams:
+                break
 
-                    # Select the best beam_width candidates
-                sequences = sorted(all_candidates, key=lambda x: x[1])[:beam_width]
+        # Combine active and completed beams
+        completed_beams.extend(beams)
 
-                # Stop if all sequences end with the token_end
-                if all(tf.reduce_all(seq[:, -1] == self.token_end) for seq, _ in sequences):
-                    break
-            # Prepare output sequences
-            decoded_sequences = [self.tokenizer.detokenize(seq) for seq, _ in sequences]
-            if greedy_sequence is not None:
-                greedy_output = self.tokenizer.detokenize(greedy_sequence)
-                decoded_sequences.insert(0, greedy_output)
+        # Sort all completed beams by score and return the best `num_results`
+        completed_beams = sorted(completed_beams, key=lambda x: x[1], reverse=True)[:num_results]
+        if return_attention_scores:
+            return [(self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy())), score, attention_scores)
+                    for seq, score, attention_scores in completed_beams]
+        else:
+            return [self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))
+                    for seq, score in completed_beams]
 
-            return decoded_sequences
-
-    def summarize(self, text: str, beam_width: int = 3) -> list:
-        encoder_input = self.tokenizer.tokenize(preprocessing(text),
-                                                max_length=self.context_max_length)
-        outputs = self.beam_search(encoder_input, beam_width=max(1, beam_width-1))
-        return outputs
+    def summarize(self, text: str, beam_width: int = 5, temperature: float = 1.1, num_results=None,
+                  return_attention_scores: bool = False) -> list:
+        num_results = num_results or beam_width
+        return self.beam_search(preprocessing(text),
+                                beam_width=beam_width,
+                                temperature=temperature,
+                                num_results=num_results,
+                                return_attention_scores=return_attention_scores)
 
 
 # Function to generate summaries and display them in HTML format
