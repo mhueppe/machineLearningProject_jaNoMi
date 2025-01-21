@@ -6,7 +6,7 @@ from tensorflow.keras.callbacks import Callback
 import tensorflow as tf
 from resources.inference.generateSummary import GenerateSummary
 import numpy as np
-from resources.evaluation.evaluation import compute_bleu, compute_cider, compute_rouge, compute_repeated_words
+from resources.evaluation.metrics import compute_bleu, compute_cider, compute_rouge, compute_repeated_words
 
 class WandbLoggingCallback(Callback):
     def on_epoch_end(self, epoch, logs=None):
@@ -44,7 +44,7 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
         self.lang = "en"  # Language for BERTScore, default is English
 
     def on_epoch_end(self, epoch, logs=None):
-        beam_width = 3
+        beam_width = 2
         generated_summaries = []
         for text in self.context:
             summaries = self.titleGenerator.summarize(text, beam_width=beam_width)

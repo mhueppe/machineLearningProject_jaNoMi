@@ -25,7 +25,7 @@ def plot_attention_heads(attention_scores, layer_name, representation):
     x_len = len(x_repr)
     y_len = len(y_repr)
     for i in range(num_heads):
-        fig, ax = plt.subplots(1, figsize=(15, 15))
+        fig, ax = plt.subplots(1, figsize=(10, 10))
         ax.imshow(attention_scores[i][:x_len, :y_len], aspect="auto", cmap='viridis')
         ax.set_title(f"Head {i + 1}")
         ax.set_xlabel("Key Positions")
@@ -38,9 +38,93 @@ def plot_attention_heads(attention_scores, layer_name, representation):
         plt.tight_layout()
         plt.show()
 
+from IPython.display import display, HTML
+
+def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: bool = True):
+    """
+    Generate a heat-mapped text visualization for tokenized sentences.
+
+    Args:
+        sentence (str): The input sentence with tokens (e.g., 'walk ##ing').
+        values (list[float]): A list of values corresponding to each token.
+        colormap (str): The matplotlib colormap to use for coloring.
+
+    Returns:
+        str: HTML string with styled combined tokens based on their values.
+    """
+    import matplotlib.cm as cm
+    import matplotlib.colors as mcolors
+    start_token = "[START]"
+    if start_token in sentence:
+        sentence = sentence[len(start_token):]
+        values = values[1:]
+    tokens = sentence.split()
+    assert len(tokens) == len(values), "Number of tokens and values must match!"
+
+    # Normalize values to [0, 1]
+    norm = mcolors.Normalize(vmin=min(values), vmax=max(values))
+    cmap = cm.get_cmap(colormap)
+
+    styled_text = []
+    if combine_tokens:
+        current_word = ""
+        current_value = 0
+        token_count = 0
+
+        for token, value in zip(tokens, values):
+            if token.startswith("##"):  # Continuation of the previous word
+                current_word += token[2:]  # Remove '##' and append
+                current_value += value
+                token_count += 1
+            else:
+                if current_word:  # Add the previous combined word
+                    avg_value = current_value / token_count
+                    rgba = cmap(norm(avg_value))
+                    rgba = (*rgba[:3], 0.7)  # Adjust alpha
+                    color = mcolors.to_hex(rgba)
+                    r, g, b = rgba[:3]
+                    brightness = (0.299 * r + 0.587 * g + 0.114 * b)
+                    text_color = '#000000' if brightness > 0.5 else '#FFFFFF'
+                    styled_text.append(
+                        f'<span style="background-color: {color}; color: {text_color}; padding: 0 4px; border-radius: 4px;">{current_word}</span>'
+                    )
+                # Start a new word
+                current_word = token
+                current_value = value
+                token_count = 1
+
+        # Add the last word
+        if current_word:
+            avg_value = current_value / token_count
+            rgba = cmap(norm(avg_value))
+            rgba = (*rgba[:3], 0.7)  # Adjust alpha
+            color = mcolors.to_hex(rgba)
+            r, g, b = rgba[:3]
+            brightness = (0.299 * r + 0.587 * g + 0.114 * b)
+            text_color = '#000000' if brightness > 0.5 else '#FFFFFF'
+            styled_text.append(
+                f'<span style="background-color: {color}; color: {text_color}; padding: 0 4px; border-radius: 4px;">{current_word}</span>'
+            )
+    else:
+        for token, value in zip(tokens, values):
+            rgba = cmap(norm(value))
+            rgba = (*rgba[:3], 0.7)  # Adjust the alpha value (e.g., 0.7 for 70% opacity)
+            # Convert RGBA to hex
+            color = mcolors.to_hex(rgba)
+            # Calculate brightness of the background color
+            r, g, b = rgba[:3]
+            brightness = (0.299 * r + 0.587 * g + 0.114 * b)
+
+            # Set text color to black or white based on brightness
+            text_color = '#000000' if brightness > 0.5 else '#FFFFFF'
+
+            # Style each character with its background and text color
+            styled_token = f'<span style="background-color: {color}; color: {text_color}; padding: 0 4px; border-radius: 4px;">{token}</span>'
+            styled_text.append(styled_token)
+    return ' '.join(styled_text)
 
 if __name__ == '__main__':
-    model_path = r"..\..\trained_models\Transformer\01_15_2025__16_16_28"
+    model_path = r"..\..\trained_models\Transformer\01_15_2025__17_41_21"
     train_params = json.load(open(os.path.join(model_path, "modelInfo.json")))
     model_params = train_params["model_parameters"]
     target_max_length, context_max_length = model_params["target_max_length"], model_params["context_max_length"]
@@ -65,20 +149,20 @@ if __name__ == '__main__':
                "days on eight GPUs, a small fraction of the training costs of the best models from the literature. We " \
                "show that the Transformer generalizes well to other tasks by applying it successfully to English " \
                "constituency parsing both with large and limited training data."
-    titles = titleGenerator.summarize(abstract, beam_width=5, temperature=1.0, return_attention_scores=True)
-    title, score, attention_scores = titles[0]
+    titles = titleGenerator.summarize(abstract, beam_width=15, temperature=1.2, return_attention_scores=True)
     print("Generated Titles: ")
-    for t in titles:
-        print(t[0])
+    for title, score, attention_scores in titles:
+        print(title)
+    for title, score, attention_scores in titles:
 
-    tokens_y = "[START] " + titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(title)))
-    tokens_x = titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(abstract)))
-    for name, attention_score, representation in zip(["Encoder Self Attention",
-                                                      "Decoder Causal Attention",
-                                                      "Decoder Cross Attention"],
-                                                     attention_scores,
-                                                     [(tokens_x, tokens_x), (tokens_y, tokens_y),
-                                                      (tokens_y, tokens_x)]):
+        tokens_y = "[START] " + titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(title)))
+        tokens_x = titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(abstract)))
+        for name, attention_score, representation in zip(["Encoder Self Attention",
+                                                          "Decoder Causal Attention",
+                                                          "Decoder Cross Attention"],
+                                                         attention_scores,
+                                                         [(tokens_x, tokens_x), (tokens_y, tokens_y),
+                                                          (tokens_y, tokens_x)]):
 
-        for layer_name, layer_attention_score in attention_score.items():
-            plot_attention_heads(np.array(layer_attention_score)[0], f"{name}: {layer_name}", representation)
+            for layer_name, layer_attention_score in attention_score.items():
+                plot_attention_heads(np.array(layer_attention_score)[0], f"{name}: {layer_name}", representation)

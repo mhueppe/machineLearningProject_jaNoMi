@@ -6,6 +6,7 @@ import tensorflow as tf
 
 from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
 from resources.training.transformer.transformer import Transformer
+from resources.training.rnn.rnn import RNN
 # from resources.preprocessing.dataPreprocessing import preprocessing
 
 
@@ -26,6 +27,14 @@ def init_model(Model, params):
         beta_2=0.98, # The exponential decay rate for the 2nd moment estimates. Defaults to 0.999
         epsilon=1e-9 # A small constant for numerical stability
     )
+
+    if isinstance(Model, str):
+        if Model == "Transformer":
+            Model = Transformer
+        elif Model == "RNN":
+            Model = RNN
+        else:
+            raise KeyError
 
     model = Model(**params)
 

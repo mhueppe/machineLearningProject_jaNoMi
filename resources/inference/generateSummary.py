@@ -35,7 +35,12 @@ class GenerateSummary:
         )
 
     def generate_next_token_probs(self, encoder_input, output, temperature):
-        logits, attention_scores = self.model([tf.convert_to_tensor(encoder_input, dtype=tf.int32), output])
+        output = self.model([tf.convert_to_tensor(encoder_input, dtype=tf.int32), output])
+        if isinstance(output, tuple) or isinstance(output, list):
+            logits, attention_scores = output
+        else:
+            logits = output
+            attention_scores = None
         logits = logits[:, -1, :]
         logits += self.mask
         probs = tf.nn.softmax(logits / temperature, axis=-1)
@@ -62,7 +67,7 @@ class GenerateSummary:
                     new_seq = tf.concat([seq, tf.expand_dims(token, axis=0)], axis=-1)
                     new_score = score + tf.math.log(top_probs[0, i])  # Log probabilities for numerical stability
 
-                    if token == self.token_end:
+                    if token == self.token_end or max(new_seq.shape) >= self.target_max_length:
                         completed_beams.append(
                             (new_seq, new_score, attention_scores) if return_attention_scores else (new_seq, new_score))
                     else:

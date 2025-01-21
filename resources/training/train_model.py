@@ -31,26 +31,8 @@ def train_model(settings: dict, tokenizer: Tokenizer,
                 model_dir: str = None, model_name: str = None):
     try:
         model_type = settings["model_type"]
-        model_settings = json.load(open(settings["model_params_path"]))
+        model_name = settings.get("run_name", None)
 
-        if not model_name:
-            model_name = datetime.datetime.now().strftime("%m_%d_%Y__%H_%M_%S")
-        if not model_dir:
-            model_dir = f"trained_models/{model_type}/{model_name}"
-
-        # Create a unique directory for each model trial
-        os.makedirs(model_dir, exist_ok=True)
-        model_info_path = os.path.join(model_dir, "modelInfo.json")
-        history_path = os.path.join(model_dir, "history.json")
-        summary_path = os.path.join(model_dir, "summary.txt")
-        # Hyperparameters to optimize
-        wandb.init(project="transformer_optimization", name=model_name, settings=wandb.Settings(init_timeout=120))
-        model_settings.update(settings)
-        model_settings["target_vocab_size"] = model_settings.get("vocab_size", 5000)
-        model_settings["context_vocab_size"] = model_settings.get("vocab_size", 5000)
-        model_settings["model_max_length"] = model_settings.get("context_max_length", 5000)
-        wandb.config.update(settings)
-        wandb.config.update(model_settings)
         # Model creation
         if model_type == "Transformer":
             model_class = Transformer
@@ -58,8 +40,43 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             model_class = RNN
         else:
             raise KeyError
-        model = init_model(model_class, model_settings)
+        pre_trained_models_path = settings.get("pre_trained_weights_path", None)
+        resume = "allow"
+        if pre_trained_models_path:
+            try:
+                model_settings = json.load(open(os.path.join(pre_trained_models_path, "modelInfo.json")))["model_parameters"]
+                model = init_model(model_class, model_settings)
+                model.load_weights(os.path.join(pre_trained_models_path, "modelCheckpoint.weights.h5"))
+                model_dir = pre_trained_models_path
+            except Exception as e:
+                model_name = None
+                model_settings = json.load(open(settings["model_params_path"]))
+                model = init_model(model_class, model_settings)
+                print(f"Pretrained Model Weights could not be loaded due to: {e}")
+        else:
+            model_name = None
+            model_settings = json.load(open(settings["model_params_path"]))
+            model = init_model(model_class, model_settings)
 
+        # Create a unique directory for each model trial
+        os.makedirs(model_dir, exist_ok=True)
+        model_info_path = os.path.join(model_dir, "modelInfo.json")
+        history_path = os.path.join(model_dir, "history.json")
+        summary_path = os.path.join(model_dir, "summary.txt")
+
+        model_settings.update(settings)
+        model_settings["target_vocab_size"] = model_settings.get("vocab_size", 5000)
+        model_settings["context_vocab_size"] = model_settings.get("vocab_size", 5000)
+        model_settings["model_max_length"] = model_settings.get("context_max_length", 5000)
+
+        if not model_name:
+            model_name = datetime.datetime.now().strftime("%m_%d_%Y__%H_%M_%S")
+        if not model_dir:
+            model_dir = f"trained_models/{model_type}/{model_name}"
+
+        wandb.init(project=study_name, name=model_name, settings=wandb.Settings(init_timeout=120), resume=resume)
+        wandb.config.update(settings)
+        wandb.config.update(model_settings)
         # Callback to stop training early if accuracy does not increase for 5 epochs
         callback = tf.keras.callbacks.EarlyStopping(monitor="val_masked_accuracy",
                                                     patience=settings.get("early_stopping_patience", 15),
@@ -76,9 +93,12 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         # Get model size (sum of all trainable parameters)
         model_size = sum([np.prod(var.shape) for var in model.trainable_variables])
 
-        with open(summary_path, "w") as f:
-            # Pass a function that writes to the file
-            model.summary(print_fn=lambda x: f.write(x + "\n"))
+        try:
+            with open(summary_path, "w") as f:
+                # Pass a function that writes to the file
+                model.summary(print_fn=lambda x: f.write(x + "\n"))
+        except Exception:
+            pass
 
         with open(model_info_path, "w") as f:
             model_parameters = {"model_parameters": model_settings}
@@ -99,32 +119,19 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         val_reference = evaluationBatch[1]
         summarizationCB = SummarizationCallback(
             titleGenerator=titleGenerator,
-            context=val_context[:15],  # Choose a few texts for logging
-            reference=val_reference[:15]  # Their corresponding titles
+            context=val_context[:5],  # Choose a few texts for logging
+            reference=val_reference[:5]  # Their corresponding titles
         )
-        titleGenerator.summarize("Calculation of prompt diphoton production cross sections at "
-                                 "Tevatron and LHC energies. A fully differential calculation in "
-                                 "perturbative quantum chromodynamics is presented for the production "
-                                 "of massive photon pairs at hadron colliders. All next-to-leading order"
-                                 "perturbative contributions from quark-antiquark, gluon-(anti)quark, and gluon-gluon "
-                                 "subprocesses are included, as well as all-orders resummation of initial-state gluon "
-                                 "radiation valid at next-to-next-to-leading logarithmic accuracy. The region of "
-                                 "phase space is specified in which the calculation is most reliable. Good agreement "
-                                 "is demonstrated with data from the Fermilab Tevatron, and predictions are made for "
-                                 "more detailed tests with CDF and DO data. Predictions are shown for distributions "
-                                 "of diphoton pairs produced at the energy of the Large Hadron Collider (LHC). "
-                                 "Distributions of the diphoton pairs from the decay of a Higgs boson are contrasted "
-                                 "with those produced from QCD processes at the LHC, showing that enhanced "
-                                 "sensitivity to the signal can be obtained with judicious selection of events.")
+
         # Train the model
         steps_per_epoch = settings["steps_per_epoch"]
         # validation_steps = settings["validation_steps"]
         epochs = settings["epochs"]
-
+        initial_epoch = settings.get("initial_epoch", 0)
         history = model.fit(train_dataset, steps_per_epoch=steps_per_epoch,
                             validation_data=val_dataset, epochs=epochs,
                             callbacks=[callback, cp_callback, summarizationCB, WandbLoggingCallback()],
-                            validation_steps=validation_steps)
+                            validation_steps=validation_steps, initial_epoch=initial_epoch)
         # Save model as an artifact
         artifact = wandb.Artifact(f"model_trial_{model_name}", type="model")
         artifact.add_file(checkpoint_path)
@@ -151,7 +158,7 @@ if __name__ == '__main__':
     train_params = json.load(open("train_params.json", "r"))
     wandb.login(key=train_params["wandb_key"])
     override = True
-    study_name = "Transformer"
+    study_name = train_params.get("study_name", "transformer_optimization")
     path_train = train_params["data_path_train"]
     path_val = train_params["data_path_val"]
     steps_per_epoch = train_params["steps_per_epoch"]
@@ -160,6 +167,18 @@ if __name__ == '__main__':
     nTrials = train_params["nTrials"]
     input_idx = train_params["input_idx"]
     label_idx = train_params["label_idx"]
+    key_word_idx = train_params.get("key_word_idx", input_idx)
+    distillation_model_path = train_params.get("distillation_model", "")
+    distill = os.path.isdir(distillation_model_path)
+
+    if distill:
+        train_params = json.load(open(os.path.join(distillation_model_path, "modelInfo.json")))
+        distill_model_params = train_params["model_parameters"]
+        target_max_length, context_max_length = distill_model_params["target_max_length"], distill_model_params["context_max_length"]
+        distill_model_params["return_attention_scores"] = True
+        distill_model = init_model(distill_model_params["model_type"], distill_model_params)
+        distill_model.summary()
+        distill_model.load_weights(os.path.join(distill_model, "modelCheckpoint.weights.h5"))
 
     nEvaluationSamples = train_params["nEvaluationSamples"]
     context_min_length = train_params["context_min_length"]
@@ -176,7 +195,7 @@ if __name__ == '__main__':
     vocab_exists = os.path.isfile(train_params["tokenizer_vocab_path"])
 
     import re
-    def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1):
+    def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None):
         """
         Reads the csv file line by line so that the
         :param targets_idx: Index of target column
@@ -184,6 +203,8 @@ if __name__ == '__main__':
         :param file_path:
         :return:
         """
+        if not key_word_idx:
+            key_word_idx = inputs_idx
         while True:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 reader = csv.reader(f, delimiter=",")
@@ -192,16 +213,17 @@ if __name__ == '__main__':
                     try:
                         input_s = line[inputs_idx]
                         target_s = line[targets_idx]
-                        yield input_s, target_s
-                        continue
                         p_input_s = preprocessing(input_s)
-                        # p_target_s = preprocessing(target_s)
-                        p_input_s = input_s
-                        p_target_s = target_s
+                        p_target_s = preprocessing(target_s)
+                        # p_input_s = input_s
+                        # p_target_s = target_s
+                        if key_word_idx != inputs_idx:
+                            p_input_s = p_input_s + " | " + line[key_word_idx]
                         if len(p_input_s.split()) < context_min_length or len(p_target_s.split()) < target_min_length:
                             continue
                         yield p_input_s, p_target_s
                     except Exception as e:
+                        print(e, input_idx, targets_idx)
                         continue
 
 
@@ -209,13 +231,13 @@ if __name__ == '__main__':
         dataGenerator_preprocessed,
         output_signature=(tf.TensorSpec(shape=(), dtype=tf.string),
                           tf.TensorSpec(shape=(), dtype=tf.string)),
-        args=(path_train, input_idx, label_idx)  # You can change "abstract" to "title" if needed
+        args=(path_train, input_idx, label_idx, key_word_idx)  # You can change "abstract" to "title" if needed
     )
     val_dataset = tf.data.Dataset.from_generator(
         dataGenerator_preprocessed,
         output_signature=(tf.TensorSpec(shape=(), dtype=tf.string),
                           tf.TensorSpec(shape=(), dtype=tf.string)),
-        args=(path_val, input_idx, label_idx)  # You can change "abstract" to "title" if needed
+        args=(path_val, input_idx, label_idx, key_word_idx)  # You can change "abstract" to "title" if needed
     )
     val_reference = []
     val_context = []
@@ -246,7 +268,7 @@ if __name__ == '__main__':
         tokenizer = TokenizerBertHuggingFace(train_params["tokenizer_vocab_path"])
 
 
-        def dataGenerator_tokenized(file_path, inputs_idx: int = 2, targets_idx: int = 1):
+        def dataGenerator_tokenized(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None):
             """
             Reads the csv file line by line so that the
             :param targets_idx: Index of target column
@@ -254,7 +276,7 @@ if __name__ == '__main__':
             :param file_path:
             :return:
             """
-            dataGen = dataGenerator_preprocessed(file_path, inputs_idx, targets_idx)
+            dataGen = dataGenerator_preprocessed(file_path, inputs_idx, targets_idx, key_word_idx)
             for input_s, target_s in dataGen:
                 yield tokenizer.tokenize(input_s, frame=True, max_length=context_max_length)[0], \
                     tokenizer.tokenize(target_s, frame=True, max_length=target_max_length)[0]
@@ -264,13 +286,13 @@ if __name__ == '__main__':
             dataGenerator_tokenized,
             output_signature=(tf.TensorSpec(shape=context_max_length, dtype=tf.int32),
                               tf.TensorSpec(shape=target_max_length, dtype=tf.int32)),
-            args=(path_train, input_idx, label_idx)
+            args=(path_train, input_idx, label_idx, key_word_idx)
         )
         val_dataset = tf.data.Dataset.from_generator(
             dataGenerator_tokenized,
             output_signature=(tf.TensorSpec(shape=context_max_length, dtype=tf.int32),
                               tf.TensorSpec(shape=target_max_length, dtype=tf.int32)),
-            args=(path_val, input_idx, label_idx)
+            args=(path_val, input_idx, label_idx, key_word_idx)
         )
     else:
         raise KeyError
