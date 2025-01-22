@@ -5,7 +5,6 @@ import numpy as np
 # Class for generating summaries
 import tensorflow as tf
 import re
-from tqdm.auto import tqdm
 from resources.preprocessing.tokenizer import Tokenizer
 from IPython.core.display import HTML
 from resources.preprocessing.dataPreprocessing import preprocessing
@@ -71,6 +70,8 @@ class GenerateSummary:
                         completed_beams.append(
                             (new_seq, new_score, attention_scores) if return_attention_scores else (new_seq, new_score))
                     else:
+                        # TODO: Everytime a new token is appended to the final
+                        #  one perform a callback to the gui to update the generated token (chat gpt style)
                         new_beams.append((new_seq, new_score))
 
             # Sort new beams by score and keep the top `beam_width`
@@ -113,6 +114,8 @@ def normalize_target(text):
 
 def prepare_for_evaluation(dataset, generate_summary):
     predictions, references = [], []
+    from tqdm.auto import tqdm
+
     for sample in tqdm(dataset):
         prediction = generate_summary.summarize(sample["document"])
         reference = normalize_target(sample["summary"])
