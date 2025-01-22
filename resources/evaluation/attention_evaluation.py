@@ -123,8 +123,44 @@ def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: boo
             styled_text.append(styled_token)
     return ' '.join(styled_text)
 
+from PySide6.QtWidgets import QApplication, QDialog, QVBoxLayout, QTextBrowser, QPushButton
+from PySide6.QtCore import Qt
+
+
+class HtmlViewerDialog(QDialog):
+    def __init__(self, html_content: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("HTML Viewer")
+        self.setMinimumSize(600, 400)
+        self.setStyleSheet("background-color: white;")
+
+        # Create layout
+        layout = QVBoxLayout(self)
+
+        # Create a QTextBrowser for displaying HTML
+        self.text_browser = QTextBrowser(self)
+        self.text_browser.setHtml(html_content)
+
+        # Create a close button
+        close_button = QPushButton("Close", self)
+        close_button.clicked.connect(self.accept)
+
+        # Add widgets to the layout
+        layout.addWidget(self.text_browser)
+        layout.addWidget(close_button)
+
+        # Set the layout
+        self.setLayout(layout)
+
+
+
 if __name__ == '__main__':
-    model_path = r"..\..\trained_models\Transformer\01_15_2025__17_41_21"
+    import sys
+
+    app = QApplication(sys.argv)
+
+    model_name = "01_15_2025__17_41_21"
+    model_path = fr"..\..\trained_models\Transformer\{model_name}"
     train_params = json.load(open(os.path.join(model_path, "modelInfo.json")))
     model_params = train_params["model_parameters"]
     target_max_length, context_max_length = model_params["target_max_length"], model_params["context_max_length"]
@@ -149,14 +185,14 @@ if __name__ == '__main__':
                "days on eight GPUs, a small fraction of the training costs of the best models from the literature. We " \
                "show that the Transformer generalizes well to other tasks by applying it successfully to English " \
                "constituency parsing both with large and limited training data."
-    titles = titleGenerator.summarize(abstract, beam_width=15, temperature=1.2, return_attention_scores=True)
+    titles = titleGenerator.summarize(abstract, beam_width=2, temperature=1.2, return_attention_scores=True)
     print("Generated Titles: ")
     for title, score, attention_scores in titles:
         print(title)
     for title, score, attention_scores in titles:
 
         tokens_y = "[START] " + titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(title)))
-        tokens_x = titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(abstract)))
+        tokens_x = "[START] " + titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(abstract)))
         for name, attention_score, representation in zip(["Encoder Self Attention",
                                                           "Decoder Causal Attention",
                                                           "Decoder Cross Attention"],
@@ -165,4 +201,15 @@ if __name__ == '__main__':
                                                           (tokens_y, tokens_x)]):
 
             for layer_name, layer_attention_score in attention_score.items():
-                plot_attention_heads(np.array(layer_attention_score)[0], f"{name}: {layer_name}", representation)
+                # plot_attention_heads(np.array(layer_attention_score)[0], f"{name}: {layer_name}", representation)
+                for head in layer_attention_score[0]:
+                    for i, repr in enumerate(set(representation)):
+                        html_content = generate_heatmap_text(repr, np.mean(head, i)[:len(repr.split())],
+                                                             "Greens", combine_tokens=True)
+                        display(HTML(f"<p style='font-family: Arial, sans-serif;'>{html_content}</p>"))
+                        # Create and display the dialog
+                        dialog = HtmlViewerDialog(f"<p style='font-family: Arial, sans-serif;'>{html_content}</p>")
+                        dialog.exec()
+
+                        with open(f"{model_name}_{name}_{layer_name}_{i}.html", "w") as file:
+                            file.write(html_content)
