@@ -4,11 +4,12 @@
 # built-in
 import json
 import os
-from typing import List
+from typing import List, Callable
 
 from utils.util_readingData import load_data
 from .createModel import init_model, init_tokenizers
 from resources.inference.generateSummary import GenerateSummary
+from .preprocessing.tokenizer import TokenizerBertHuggingFace
 from .training.transformer.transformer import Transformer
 # local
 from .model_types import ModelTypes
@@ -34,13 +35,15 @@ class JaNoMiModel:
         self._rake = Rake(max_length=3)
         self._kw_model = KeyBERT()
 
-        with open(os.path.join("resources", "headliner-params.json")) as f:
-            params = json.load(f)
-        titles, abstracts = load_data('Arxiv', params)
-        self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts, params)
+        with open(os.path.join("resources", "final_model", "modelInfo.json")) as f:
+            params = json.load(f)["model_parameters"]
+        params["return_attention_scores"] = True
+        #titles, abstracts = load_data('Arxiv', params)
+        #self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts, params)
+        self._tokenizer = TokenizerBertHuggingFace('arxiv_vocab_8000.json')
         self._headliner = init_model(Transformer, params)
-        # TODO load model weights
-        #self._headliner.load_weights(os.path.join("trained_models","model.weights.h5"))
+        self._headliner.load_weights(os.path.join("resources","final_model","model.weights.h5"))
+
 
     @staticmethod
     def encodeInput(userInput: str) -> List[str]:
@@ -60,23 +63,25 @@ class JaNoMiModel:
         encodedInput = self.encodeInput(userInput)
         return np.array([1 / len(encodedInput)] * len(encodedInput))  # Uniform distribution for each word
 
-    def generateOutput(self, userInput: str, modelType: ModelTypes = ModelTypes.TfIdf) -> str:
+
+    # number_of_titles: int = None, temperature: int = None, gui_cb: Callable[] = None
+    def generateOutput(self, user_input: str, model_type: ModelTypes = ModelTypes.TfIdf, **kwargs) -> list[str]:
         """
         Generate output based on the encoded Input
         :param userInput: Input from the user
         :param modelType: Model to use for generating output
         :return:
         """
-        if modelType == ModelTypes.Headliner:
-            return self.generateOutput_headliner(userInput)
-        elif modelType == ModelTypes.TfIdf:
-            output = self.generateOutput_tfidf(userInput)
-        elif modelType == ModelTypes.Rake:
-            output = self.generateOutput_rake(userInput)
+        if model_type == ModelTypes.Headliner:
+            return self.generateOutput_headliner(user_input, **kwargs)
+        elif model_type == ModelTypes.TfIdf:
+            output = self.generateOutput_tfidf(user_input)
+        elif model_type == ModelTypes.Rake:
+            output = self.generateOutput_rake(user_input)
         else:
-            output = self.generateOutput_keyBert(userInput)
+            output = self.generateOutput_keyBert(user_input)
 
-        return ", ".join(output)
+        return [", ".join(output)]
 
     def generateOutput_tfidf(self, userInput: str):
         """
@@ -117,16 +122,18 @@ class JaNoMiModel:
         keywords = self._kw_model.extract_keywords(userInput, top_n=10)
         return [word for word, _ in keywords]  # List of most important words
 
-    def generateOutput_headliner(self, userInput: str):
+
+    # TODO: adjust (default) params vs kwargs
+    def generateOutput_headliner(self, user_input: str, num_results: int = 1, temperature: float = 1, gui_cb: Callable = None):
         """
         predict output based on our own trained model
-        :param userInput: abstract put in by the user
+        :param user_input: abstract put in by the user
         :return: title predicted by the model
         """
         with open(os.path.join("resources","headliner-params.json")) as f:
             params = json.load(f)
         summary = GenerateSummary(self._headliner,
-                                  self._context_tokenizer.get_vocabulary(),
-                                  self._context_tokenizer,
-                                  params["target_max_length"])
-        return summary.summarize(userInput)
+                                  self._tokenizer,
+                                  params["target_max_length"],
+                                  params["context_max_length"])
+        return summary.summarize(user_input, 5, num_results=num_results, temperature=temperature, return_attention_scores=True, gui_cb=gui_cb)
