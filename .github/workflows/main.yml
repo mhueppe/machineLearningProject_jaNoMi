@@ -1,0 +1,23 @@
+name: Generate Actions Timeline
+
+on:
+  workflow_dispatch: # Allows manual trigger of the workflow
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight (UTC)
+
+jobs:
+  generate-timeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Generate timeline
+        uses: Kesin11/actions-timeline@v2.2.2
+
+      - name: Upload timeline artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: actions-timeline
+          path: actions-timeline.svg
