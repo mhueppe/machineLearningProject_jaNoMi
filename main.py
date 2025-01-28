@@ -30,13 +30,12 @@ class MainApplication(QMainWindow):
         self.setWindowTitle("Main Application")
         self.resize(800, 600)
 
-    def _gui_inputerEnter(self, userInput: str, modelType: ModelTypes) -> None:
+    def _gui_inputerEnter(self, user_input: str, **kwargs) -> list:
         """
         Send the input of the gui to the input handler
         :return:
         """
-        output = self.inputHandler.generateOutput(userInput, modelType)
-        self.interface.handleOutput(output)
+        return self.inputHandler.generateOutput(user_input, **kwargs)
 
 
 # Define the stylesheet
