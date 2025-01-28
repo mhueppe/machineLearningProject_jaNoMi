@@ -123,8 +123,8 @@ def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: boo
             styled_text.append(styled_token)
     return ' '.join(styled_text)
 
-from PySide6.QtWidgets import QApplication, QDialog, QVBoxLayout, QTextBrowser, QPushButton
-from PySide6.QtCore import Qt
+from PySide2.QtWidgets import QApplication, QDialog, QVBoxLayout, QTextBrowser, QPushButton
+from PySide2.QtCore import Qt
 
 
 class HtmlViewerDialog(QDialog):
@@ -153,46 +153,16 @@ class HtmlViewerDialog(QDialog):
         self.setLayout(layout)
 
 
-
-if __name__ == '__main__':
-    import sys
-
-    app = QApplication(sys.argv)
-
-    model_name = "01_15_2025__17_41_21"
-    model_path = fr"..\..\trained_models\Transformer\{model_name}"
-    train_params = json.load(open(os.path.join(model_path, "modelInfo.json")))
-    model_params = train_params["model_parameters"]
-    target_max_length, context_max_length = model_params["target_max_length"], model_params["context_max_length"]
-    model_params["return_attention_scores"] = True
-    model = init_model(Transformer, model_params)
-    model.summary()
-    model.load_weights(os.path.join(model_path, "modelCheckpoint.weights.h5"))
-    # Train tokenizer
-    vocab_path = r"..\..\arxiv_vocab_8000.json"
-    # Initialize tokenizer
-    tokenizer = TokenizerBertHuggingFace(vocab_path)
-    titleGenerator = GenerateSummary(model, tokenizer, target_max_length, context_max_length)
-    abstract = "The dominant sequence transduction models are based on complex recurrent or convolutional neural " \
-               "networks in an encoder-decoder configuration. The best performing models also connect the encoder and " \
-               "decoder through an attention mechanism. We propose a new simple network architecture, " \
-               "the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions " \
-               "entirely. Experiments on two machine translation tasks show these models to be superior in quality " \
-               "while being more parallelizable and requiring significantly less time to train. Our model achieves " \
-               "28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best " \
-               "results, including ensembles by over 2 BLEU. On the WMT 2014 English-to-French translation task, " \
-               "our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 " \
-               "days on eight GPUs, a small fraction of the training costs of the best models from the literature. We " \
-               "show that the Transformer generalizes well to other tasks by applying it successfully to English " \
-               "constituency parsing both with large and limited training data."
-    titles = titleGenerator.summarize(abstract, beam_width=2, temperature=1.2, return_attention_scores=True)
+def generate_html(titles, titleGenerator):
     print("Generated Titles: ")
     for title, score, attention_scores in titles:
         print(title)
     for title, score, attention_scores in titles:
 
-        tokens_y = "[START] " + titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(title)))
-        tokens_x = "[START] " + titleGenerator.tokenizer.detokenize(titleGenerator.tokenizer.tokenize(preprocessing(abstract)))
+        tokens_y = "[START] " + titleGenerator.tokenizer.detokenize(
+            titleGenerator.tokenizer.tokenize(preprocessing(title)))
+        tokens_x = "[START] " + titleGenerator.tokenizer.detokenize(
+            titleGenerator.tokenizer.tokenize(preprocessing(abstract)))
         for name, attention_score, representation in zip(["Encoder Self Attention",
                                                           "Decoder Causal Attention",
                                                           "Decoder Cross Attention"],
@@ -213,3 +183,42 @@ if __name__ == '__main__':
 
                         with open(f"{model_name}_{name}_{layer_name}_{i}.html", "w") as file:
                             file.write(html_content)
+
+
+if __name__ == '__main__':
+    import sys
+
+    app = QApplication(sys.argv)
+
+    model_name = ""
+    #model_path = fr"..\..\trained_models\Transformer\{model_name}"
+    model_path = fr"..\final_model"
+    train_params = json.load(open(os.path.join(model_path, "modelInfo.json")))
+    model_params = train_params["model_parameters"]
+    target_max_length, context_max_length = model_params["target_max_length"], model_params["context_max_length"]
+    model_params["return_attention_scores"] = True
+    model = init_model(Transformer, model_params)
+    model.summary()
+    model.load_weights(os.path.join(model_path, "model.weights.h5"))
+    # Train tokenizer
+    vocab_path = r"..\..\arxiv_vocab_8000.json"
+    # Initialize tokenizer
+    tokenizer = TokenizerBertHuggingFace(vocab_path)
+    titleGenerator = GenerateSummary(model, tokenizer, target_max_length, context_max_length)
+    abstract = "The dominant sequence transduction models are based on complex recurrent or convolutional neural " \
+               "networks in an encoder-decoder configuration. The best performing models also connect the encoder and " \
+               "decoder through an attention mechanism. We propose a new simple network architecture, " \
+               "the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions " \
+               "entirely. Experiments on two machine translation tasks show these models to be superior in quality " \
+               "while being more parallelizable and requiring significantly less time to train. Our model achieves " \
+               "28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best " \
+               "results, including ensembles by over 2 BLEU. On the WMT 2014 English-to-French translation task, " \
+               "our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 " \
+               "days on eight GPUs, a small fraction of the training costs of the best models from the literature. We " \
+               "show that the Transformer generalizes well to other tasks by applying it successfully to English " \
+               "constituency parsing both with large and limited training data."
+    titles = titleGenerator.summarize(abstract, beam_width=2, temperature=1.2, return_attention_scores=True)
+
+    generate_html(titles, titleGenerator)
+
+

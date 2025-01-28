@@ -7,7 +7,7 @@ import tensorflow as tf
 from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
 from resources.training.transformer.transformer import Transformer
 from resources.training.rnn.rnn import RNN
-# from resources.preprocessing.dataPreprocessing import preprocessing
+from resources.preprocessing.dataPreprocessing import preprocessing
 
 
 def init_model(Model, params):

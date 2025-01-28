@@ -2,10 +2,6 @@ import pandas as pd
 import openai
 
 
-generated_title = ""
-abstract = ""
-
-
 API_KEY = "key"
 MODEL = "gpt-4o-mini"
 
@@ -68,7 +64,7 @@ def get_extractive_to_abstractive_balance(abstract, generated_title):
 
 if __name__ == "__main__":
     #df = pd.read_csv('generated_titles.csv')
-    df = pd.DataFrame(data=[["1","2","3"],["4","5","6"],["7","8","9"]], columns=["abstract","title"])
+    df = pd.DataFrame(data=[["1","2"],["4","5"],["7","8"]], columns=["abstract","title"])
     results = []
     for abstract, generated_title in df["abstract","title"]:
         semantic_score, semantic_explanation = get_semantic_similarity_score(abstract, generated_title)
