@@ -1,13 +1,13 @@
 # author: Michael Hüppe
 # date: 28.10.2024
 # project: /main_application.py
-from PySide2.QtGui import QIcon
+from PySide6.QtGui import QIcon
 
 # local
 from gui.interface import Interface
 from resources.model import JaNoMiModel
 # external
-from PySide2.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QMainWindow
 import sys
 from resources.model_types import ModelTypes
 
@@ -19,8 +19,9 @@ class MainApplication(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.interface = Interface(cb_inputEnter=self._gui_inputerEnter)  # Create an instance of Interface
         self.inputHandler = JaNoMiModel()
+        self.interface = Interface(cb_inputEnter=self._gui_inputerEnter,
+                                   tokenizer=self.inputHandler._tokenizer)  # Create an instance of Interface
         self.setCentralWidget(self.interface)  # Set Interface as the main widget
         self.initUI()
         self.setWindowTitle("Headliner")
@@ -30,13 +31,12 @@ class MainApplication(QMainWindow):
         self.setWindowTitle("Main Application")
         self.resize(800, 600)
 
-    def _gui_inputerEnter(self, userInput: str, modelType: ModelTypes) -> None:
+    def _gui_inputerEnter(self, user_input: str, **kwargs) -> list:
         """
         Send the input of the gui to the input handler
         :return:
         """
-        output = self.inputHandler.generateOutput(userInput, modelType)
-        self.interface.handleOutput(output)
+        return self.inputHandler.generateOutput(user_input, **kwargs)
 
 
 # Define the stylesheet
@@ -47,7 +47,7 @@ stylesheet = """
 
     QPushButton {
         background-color: #cd2f2d;  /* Red background for buttons */
-        color: white;               /* White text color */
+        color: black;               /* White text color */
         border-radius: 15px;        /* Rounded edges */
         padding: 10px;              /* Internal padding */
         font-size: 16px;            /* Font size */
@@ -65,10 +65,11 @@ stylesheet = """
 def main():
     """Main entry point for the application."""
     app = QApplication(sys.argv)
-    app.setStyleSheet(stylesheet)
+    # app.setStyleSheet(stylesheet)
+    # app.setStyleSheet("QWidget { color: black; background: none; }")
     # Set the application icon (modify the path to your icon file)
     icon_path = "gui/media/UHH_Universitaet_Hamburg_Logo.png"  # Provide the correct path to your PNG image
-    app.setStyle("Fusion")
+    # app.setStyle("Fusion")
     app.setWindowIcon(QIcon(icon_path))
     main_window = MainApplication()
     main_window.show()

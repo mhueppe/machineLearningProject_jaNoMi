@@ -1,6 +1,9 @@
 # author: Michael Hüppe
 # date: 11.11.2024
 # project: resources/inference.py
+from math import ceil
+from typing import Callable
+
 import numpy as np
 # Class for generating summaries
 import tensorflow as tf
@@ -45,7 +48,19 @@ class GenerateSummary:
         probs = tf.nn.softmax(logits / temperature, axis=-1)
         return probs, attention_scores
 
-    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3, return_attention_scores: bool = False):
+    # num results -> anzahl titel die angezeigt werden sollen, beam_count ist die anzahl der pfade
+    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3,
+                    return_attention_scores: bool = False, gui_cb: Callable = None) -> list:
+        """
+        :param text:
+        :param beam_width: anzahl der zu testenden pfade
+        :param temperature:
+        :param num_results: anzahl der end/zwischen-ergebnisse
+        :param return_attention_scores:
+        :param gui_cb:
+        :return:
+        """
+
         encoder_input = self.tokenizer.tokenize(text, max_length=self.context_max_length)
         start_token = tf.constant(self.token_start, shape=(1, 1))
 
@@ -53,9 +68,9 @@ class GenerateSummary:
         beams = [(start_token, 0)]  # List of tuples: (sequence, score)
         completed_beams = []
 
-        for i in range(beam_width):
-
-            for seq, score in range(beam_width):
+        for c in range(self.target_max_length - 1):
+            new_beams = []
+            for seq, score in beams:
                 # Generate probabilities for the next token
                 probs, attention_scores = self.generate_next_token_probs(encoder_input, seq, temperature)
                 top_probs, top_tokens = tf.math.top_k(probs, k=beam_width)
@@ -72,7 +87,18 @@ class GenerateSummary:
                     else:
                         # TODO: Everytime a new token is appended to the final
                         #  one perform a callback to the gui to update the generated token (chat gpt style)
+                        #  => wurde eher einer liveshow der aktuell besuchten (höchstwahrscheinlich verworfenen) titel entsprechen
                         new_beams.append((new_seq, new_score))
+
+                    # TODO: hier callback um immer die besten `num_results` titel anzuzeigen
+                    #  diese sind in completed_beams oder in new_beams
+                    if gui_cb:
+                        baked_beams = [(seq, score) for seq, score, _ in completed_beams]
+                        baked_beams.extend(new_beams)
+                        baked_beams = sorted(baked_beams, key=lambda x: x[1], reverse=True)[:num_results]
+                        titles = [self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy())) for seq, _ in baked_beams]
+                        progress = ceil(100 * c / self.target_max_length)
+                        gui_cb(titles, progress)
 
             # Sort new beams by score and keep the top `beam_width`
             beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_width]
@@ -87,20 +113,21 @@ class GenerateSummary:
         # Sort all completed beams by score and return the best `num_results`
         completed_beams = sorted(completed_beams, key=lambda x: x[1], reverse=True)[:num_results]
         if return_attention_scores:
-            return [(self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy())), score, attention_scores)
+            return [(self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy())), score.numpy(), attention_scores)
                     for seq, score, attention_scores in completed_beams]
         else:
-            return [self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))
+            return [(self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy())), score.numpy())
                     for seq, score in completed_beams]
 
     def summarize(self, text: str, beam_width: int = 5, temperature: float = 1.1, num_results=None,
-                  return_attention_scores: bool = False) -> list:
+                  return_attention_scores: bool = False, gui_cb: Callable = None) -> list:
         num_results = num_results or beam_width
         return self.beam_search(preprocessing(text),
+                                num_results=num_results,
                                 beam_width=beam_width,
                                 temperature=temperature,
-                                num_results=num_results,
-                                return_attention_scores=return_attention_scores)
+                                return_attention_scores=return_attention_scores,
+                                gui_cb=gui_cb)
 
 
 # Function to generate summaries and display them in HTML format
