@@ -4,7 +4,7 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy
+from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy, distillation_loss
 from resources.training.transformer.transformer import Transformer
 from resources.training.rnn.rnn import RNN
 # from resources.preprocessing.dataPreprocessing import preprocessing

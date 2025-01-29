@@ -12,8 +12,9 @@ def Transformer(
         dropout: float = 0.1,
         num_layers_encoder: int = 1, num_layers_decoder: int = 1,
         num_heads: int = 1,
+        bottle_neck: int = 0,
         positional_embedding: str = "rope", use_seperate_embedding: bool = True,
-        return_attention_scores: bool = False, **kwargs):
+        return_attention_scores: bool = False, return_embedding: bool = False, **kwargs):
     """
     Implementation of a Transformer model after "Attention is all you need"
     :param context_vocab_size: Vocab size of the context
@@ -43,7 +44,7 @@ def Transformer(
         encoder_embedding = encoder_embedding_layer(encoder_input)
 
         x, encoder_attention = Encoder(encoder_embedding, model_max_length, embedding_dim, dropout,
-                                       num_layers_encoder, num_heads, positional_embedding)(
+                                       num_layers_encoder, kwargs.get("num_heads_encoder", num_heads), positional_embedding, kwargs)(
             encoder_embedding)
     else:
         x = encoder_input
@@ -60,13 +61,17 @@ def Transformer(
 
     x, decoder_attention_causal, decoder_attention_causal_cross = Decoder(decoder_embedding, model_max_length,
                                                                           embedding_dim, dropout, num_layers_decoder,
-                                                                          num_heads,
-                                                                          positional_embedding)([decoder_embedding, x])
+                                                                          kwargs.get("num_heads_decoder", num_heads),
+                                                                          positional_embedding, kwargs)([decoder_embedding, x])
+    if bottle_neck != 0:
+        x = tf.keras.layers.Dense(bottle_neck)(x)
     x = tf.keras.layers.Dense(target_vocab_size)(x)
     # Define outputs based on the return_attention_scores flag
     outputs = x
     if return_attention_scores:
         outputs = (x, [encoder_attention, decoder_attention_causal, decoder_attention_causal_cross])
 
+    if return_embedding:
+        outputs = (x,[encoder_embedding])
     model = tf.keras.Model(inputs=[encoder_input, decoder_input], outputs=outputs, name="Transformer")
     return model

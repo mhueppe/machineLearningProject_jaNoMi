@@ -4,10 +4,9 @@
 import datetime
 import json
 import os
-import sys
 from io import StringIO
 from typing import Tuple, List
-import pandas as pd
+
 from resources.createModel import init_model
 from resources.training.train_logging import SummarizationCallback, WandbLoggingCallback
 from resources.inference.generateSummary import GenerateSummary
@@ -16,7 +15,8 @@ from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord, Toke
 from resources.training.rnn.rnn import RNN
 from resources.training.transformer.transformer import Transformer
 from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv, dataGenerator
-
+from resources.training.trainingUtils import train_step_with_distillation, masked_loss, knowledge_distillation_loss, \
+    masked_accuracy
 # external
 import numpy as np
 import tensorflow as tf
@@ -44,6 +44,19 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         pre_trained_models_path = settings.get("pre_trained_weights_path", None)
         resume = "allow"
 
+        distillation_model_path = settings.get("distillation_model_path", "")
+        distill = os.path.isdir(distillation_model_path)
+
+        if distill:
+            train_params = json.load(open(os.path.join(distillation_model_path, "modelInfo.json")))
+            distill_model_params = train_params["model_parameters"]
+            target_max_length, context_max_length = distill_model_params["target_max_length"], distill_model_params[
+                "context_max_length"]
+            distill_model_params["return_attention_scores"] = False
+            teacher_model = init_model(distill_model_params["model_type"], distill_model_params)
+            teacher_model.summary()
+            teacher_model.load_weights(os.path.join(distillation_model_path, "modelCheckpoint.weights.h5"))
+
         if pre_trained_models_path:
             try:
                 model_settings = json.load(open(os.path.join(pre_trained_models_path, "modelInfo.json")))[
@@ -65,14 +78,6 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             model_settings["model_max_length"] = model_settings.get("context_max_length", 350)
             model = init_model(model_class, model_settings)
 
-        # Iterate through arguments and update the dictionary
-        for i in range(0, len(args), 2):  # Assuming arguments are in pairs (key, value)
-            key = args[i].strip('--')  # Remove '--' from the key
-            if i + 1 < len(args):
-                value = args[i + 1]  # The next argument is the value
-                # Update the dictionary with the key-value pair
-                model_settings[key] = value
-
         if not model_name:
             model_name = datetime.datetime.now().strftime("%m_%d_%Y__%H_%M_%S")
         if not model_dir:
@@ -88,13 +93,13 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         wandb.config.update(settings)
         wandb.config.update(model_settings)
         # Callback to stop training early if accuracy does not increase for 5 epochs
-        callback = tf.keras.callbacks.EarlyStopping(monitor="val_masked_accuracy",
-                                                    patience=settings.get("early_stopping_patience", 20),
+        early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_masked_accuracy",
+                                                    patience=settings.get("early_stopping_patience", 15),
                                                     restore_best_weights=True, mode="max")
 
         # Callback to save model weights
         checkpoint_path = os.path.join(model_dir, "modelCheckpoint.weights.h5")
-        cp_callback = tf.keras.callbacks.ModelCheckpoint(
+        checkpoint_cb  = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_path,
             verbose=1,
             save_weights_only=True,
@@ -129,8 +134,8 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         val_reference = evaluationBatch[1]
         summarizationCB = SummarizationCallback(
             titleGenerator=titleGenerator,
-            context=val_context[:5],  # Choose a few texts for logging
-            reference=val_reference[:5]  # Their corresponding titles
+            context=val_context[:15],  # Choose a few texts for logging
+            reference=val_reference[:15]  # Their corresponding titles
         )
 
         # Train the model
@@ -138,18 +143,85 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         # validation_steps = settings["validation_steps"]
         epochs = settings["epochs"]
         initial_epoch = settings.get("initial_epoch", 0)
-        history = model.fit(train_dataset, steps_per_epoch=steps_per_epoch,
-                            validation_data=val_dataset, epochs=epochs,
-                            callbacks=[callback, cp_callback, summarizationCB, WandbLoggingCallback()],
-                            validation_steps=validation_steps, initial_epoch=initial_epoch)
+
+        # Training loop
+        history = {"loss": [], "val_loss": [],
+                   "soft_loss": [], "val_soft_loss": [],
+                   "masked_accuracy": [], "val_masked_accuracy": []}
+        wandbCB = WandbLoggingCallback()
+        for epoch in range(epochs):
+            wandbCB.on_epoch_begin(epoch)
+            loss_epoch = 0
+            soft_loss_epoch = 0
+            masked_accuracy_epoch = 0
+            for batch_i in range(steps_per_epoch):
+                batch = train_dataset.take(1).as_numpy_iterator().next()
+                loss, soft_loss, y_pred = train_step_with_distillation(model, teacher_model, batch[0], batch[1],
+                                                               model.optimizer, temperature=1.2, alpha=0.3,
+                                                               return_prediction=True)
+                m_accuracy = masked_accuracy(batch[1], y_pred)
+                masked_accuracy_epoch += m_accuracy
+                loss_epoch += loss
+                soft_loss_epoch += soft_loss
+
+                # Log metrics
+                wandbCB.on_batch_end(batch=batch_i, logs={"loss": loss.numpy(), "soft_loss": soft_loss.numpy(),
+                                                          "masked_accuracy": m_accuracy})
+                print(f"Epoch {epoch + 1}, Batch {batch_i + 1}, Loss: {loss.numpy()}, Soft Loss: {soft_loss.numpy()}")
+
+            # End of epoch
+            loss_epoch /= steps_per_epoch
+            soft_loss_epoch /= steps_per_epoch
+            masked_accuracy_epoch /= steps_per_epoch
+            history["loss"].append(float(loss_epoch.numpy()))
+            history["soft_loss"].append(float(soft_loss_epoch.numpy()))
+            history["masked_accuracy"].append(float(masked_accuracy_epoch.numpy()))
+            wandbCB.on_epoch_end(epoch, logs={"loss": loss_epoch,
+                                              "soft_loss": soft_loss_epoch,
+                                              "masked_accuracy": masked_accuracy_epoch
+                                              })
+            summarizationCB.on_epoch_end(epoch)
+
+            # Evaluate on validation set
+            val_loss = 0
+            val_soft_loss = 0
+            val_masked_accuracy = 0
+            for batch_i in range(validation_steps):
+                val_batch = train_dataset.take(1).as_numpy_iterator().next()
+                y_pred = model(val_batch[0], training=False)
+                # Get teacher predictions
+                y_pred_teacher = teacher_model(val_batch[0], training=False)
+
+                # Compute loss and apply gradients
+                loss, soft_loss = knowledge_distillation_loss(val_batch[1], y_pred, y_pred_teacher,
+                                                              temperature=1.2, alpha=0.7)
+                loss = tf.reduce_mean(loss)
+                soft_loss = tf.reduce_mean(soft_loss)
+                val_masked_accuracy += masked_accuracy(val_batch[1], y_pred)
+                val_loss += loss
+                val_soft_loss += soft_loss
+
+            val_loss /= validation_steps
+            val_soft_loss /= validation_steps
+            val_masked_accuracy /= validation_steps
+            history["val_loss"].append(float(val_loss.numpy()))
+            history["val_soft_loss"].append(float(val_loss.numpy()))
+            history["val_masked_accuracy"].append(float(val_masked_accuracy.numpy()))
+
+            # Log validation metrics
+            wandbCB.on_epoch_end(epoch, logs={"val_loss": val_loss.numpy(),
+                                              "val_soft_loss": val_soft_loss.numpy(),
+                                              "val_masked_accuracy": val_masked_accuracy.numpy()})
+
         # Save model as an artifact
+        model.save_weights(checkpoint_path)
         artifact = wandb.Artifact(f"model_trial_{model_name}", type="model")
         artifact.add_file(checkpoint_path)
         wandb.log_artifact(artifact)
 
         # Save the training history
         with open(history_path, "w") as f:
-            json.dump(history.history, f)
+            json.dump(history, f)
 
         # Return both the model size to minimize and score to maximize (Optuna can handle both)
         return model, model_size, history  # Return negative score for maximization
@@ -166,18 +238,6 @@ import csv
 if __name__ == '__main__':
     # Data loading
     train_params = json.load(open("train_params.json", "r"))
-
-    # Inspect command-line arguments (sys.argv contains all arguments)
-    args = sys.argv[1:]  # Skip the script name (first argument)
-
-    # Iterate through arguments and update the dictionary
-    for i in range(0, len(args), 2):  # Assuming arguments are in pairs (key, value)
-        key = args[i].strip('--')  # Remove '--' from the key
-        if i + 1 < len(args):
-            value = args[i + 1]  # The next argument is the value
-            # Update the dictionary with the key-value pair
-            train_params[key] = value
-
     wandb.login(key=train_params["wandb_key"])
     override = True
     study_name = train_params.get("study_name", "transformer_optimization")
@@ -190,18 +250,6 @@ if __name__ == '__main__':
     input_idx = train_params["input_idx"]
     label_idx = train_params["label_idx"]
     key_word_idx = train_params.get("key_word_idx", input_idx)
-    distillation_model_path = train_params.get("distillation_model_path", "")
-    distill = os.path.isdir(distillation_model_path)
-
-    if distill:
-        teacher_params = json.load(open(os.path.join(distillation_model_path, "modelInfo.json")))
-        distill_model_params = teacher_params["model_parameters"]
-        target_max_length, context_max_length = distill_model_params["target_max_length"], distill_model_params[
-            "context_max_length"]
-        distill_model_params["return_attention_scores"] = False
-        teacher_model = init_model(distill_model_params["model_type"], distill_model_params)
-        # teacher_model.summary()
-        teacher_model.load_weights(os.path.join(distillation_model_path, "modelCheckpoint.weights.h5"))
 
     nEvaluationSamples = train_params["nEvaluationSamples"]
     context_min_length = train_params["context_min_length"]
@@ -210,7 +258,6 @@ if __name__ == '__main__':
     target_max_length = train_params["target_max_length"]
     batch_size = train_params["batch_size"]
     vocab_size = train_params["vocab_size"]
-    alpha = train_params.get("alpha", 0.8)
 
     # Mask to discard [UNK] tokens and padding tokens
     model_settings = json.load(open(train_params["model_params_path"]))
@@ -220,10 +267,8 @@ if __name__ == '__main__':
 
     import re
 
-    train_df = pd.read_csv(path_train,
-                           usecols=["Unnamed: 0"])
-    def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None,
-                                   train: bool = True):
+
+    def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None):
         """
         Reads the csv file line by line so that the
         :param targets_idx: Index of target column
@@ -239,9 +284,6 @@ if __name__ == '__main__':
                 _ = reader.__next__()
                 for i, line in enumerate(reader):
                     try:
-                        # if train and int(line[0]) not in valid_indeces:
-                        #     continue
-
                         input_s = line[inputs_idx]
                         target_s = line[targets_idx]
                         p_input_s = preprocessing(input_s)
@@ -250,12 +292,11 @@ if __name__ == '__main__':
                         # p_target_s = target_s
                         if key_word_idx != inputs_idx:
                             p_input_s = p_input_s + " | " + line[key_word_idx]
-                        if len(p_input_s.split()) < context_min_length or len(
-                                p_target_s.split()) < target_min_length:
+                        if len(p_input_s.split()) < context_min_length or len(p_target_s.split()) < target_min_length:
                             continue
                         yield p_input_s, p_target_s
                     except Exception as e:
-                        print(e, input_idx, targets_idx, line[0])
+                        print(e, input_idx, targets_idx)
                         continue
 
 
@@ -269,7 +310,7 @@ if __name__ == '__main__':
         dataGenerator_preprocessed,
         output_signature=(tf.TensorSpec(shape=(), dtype=tf.string),
                           tf.TensorSpec(shape=(), dtype=tf.string)),
-        args=(path_val, input_idx, label_idx, key_word_idx, False)  # You can change "abstract" to "title" if needed
+        args=(path_val, input_idx, label_idx, key_word_idx)  # You can change "abstract" to "title" if needed
     )
     val_reference = []
     val_context = []
@@ -339,7 +380,6 @@ if __name__ == '__main__':
             return contexts + targets
 
 
-    @tf.function
     def tokenization(contexts, targets):
         # dynamic tokenizer
         if train_params["tokenizer"] in ["bert", "word"]:

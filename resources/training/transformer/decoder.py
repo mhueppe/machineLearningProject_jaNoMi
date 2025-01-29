@@ -3,9 +3,10 @@
 # project: resources/decoder.py
 import tensorflow as tf
 from .feedForward import FeedForward
-from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePositionalEmbedding, RotaryPositionalEmbedding
+from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePositionalEmbedding, RoPEEmbedding, \
+    LearnablePositionalEmbedding
 
-def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer") -> tf.keras.Model:
+def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwargs) -> tf.keras.Model:
     """
     Implements one layer in the Decoder with pre-normalization.
     This decoder incorporates Causal Self-Attention, Cross-Attention, and a Feed-Forward network.
@@ -39,6 +40,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer") -> tf.
 
     # Pre-normalization before Cross-Attention
     normalized_self_attention_output = tf.keras.layers.LayerNormalization()(self_attention_output)
+    encoder_output = tf.keras.layers.LayerNormalization()(encoder_output)
     cross_attention, cross_attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
         key_dim=embedding_dim,
@@ -57,7 +59,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer") -> tf.
     # Pre-normalization before Feed-Forward
     normalized_cross_attention_output = tf.keras.layers.LayerNormalization()(cross_attention_output)
     name_ff = name.split("_")[0] + "_feed_forward_" + name.split("_")[-1]
-    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff)(normalized_cross_attention_output)
+    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff, cropped=kwargs.get("feed_forward_cropped", True))(normalized_cross_attention_output)
 
     # Add residual connection
     output = tf.keras.layers.Add()([cross_attention_output, feed_forward])
@@ -68,7 +70,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer") -> tf.
 
 def Decoder(embedding, model_max_length,
             embedding_dim, dropout, num_layers,
-            num_heads, positionalEmbedding) -> tf.keras.Model:
+            num_heads, positionalEmbedding, kwargs) -> tf.keras.Model:
     """
     Implements Decoder.
     :param embedding: The input embedding to the decoder.
@@ -86,7 +88,10 @@ def Decoder(embedding, model_max_length,
     if positionalEmbedding == "relative":
         x = RelativePositionalEmbedding(model_max_length // 2, embedding_dim)(embedding)
     elif positionalEmbedding == "rope":
-        x = RotaryPositionalEmbedding(model_max_length, embedding_dim)(embedding)
+        x = RoPEEmbedding(model_max_length, embedding_dim)(embedding)
+
+    elif positionalEmbedding == "learnable":
+        x = LearnablePositionalEmbedding(model_max_length, embedding_dim)(embedding)
     else:
         x = PositionalEmbedding(model_max_length, embedding_dim)(embedding)
 
@@ -94,7 +99,7 @@ def Decoder(embedding, model_max_length,
 
     # Create decoder layers
     decoder_layers = [
-        DecoderLayer(num_heads, embedding_dim, dropout, name=f"decoder_layer_{i + 1}")
+        DecoderLayer(num_heads, embedding_dim, dropout, name=f"decoder_layer_{i + 1}", **kwargs)
         for i in range(num_layers)
     ]
 

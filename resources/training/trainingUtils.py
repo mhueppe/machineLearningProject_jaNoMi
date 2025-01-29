@@ -3,9 +3,49 @@
 # project: resources/trainingUtils.py
 import tensorflow as tf
 from tensorflow.keras.utils import register_keras_serializable
+import tensorflow as tf
+@tf.function
+def knowledge_distillation_loss(y_true, y_pred_student, y_pred_teacher, temperature=1.0, alpha=0.5):
+    """
+    Combines hard and soft losses for knowledge distillation.
+    """
+    # Hard loss: Categorical cross-entropy with true labels
+    hard_loss = masked_loss(y_true, y_pred_student)
 
+    # Soft loss: KL divergence with teacher's soft predictions
+    y_pred_teacher_soft = tf.nn.softmax(y_pred_teacher / temperature)
+    y_pred_student_soft = tf.nn.softmax(y_pred_student / temperature)
+    soft_loss = tf.keras.losses.KLDivergence()(y_pred_teacher_soft, y_pred_student_soft) * (temperature ** 2)
 
-def masked_loss(labels, logits):
+    # Combine losses
+    return alpha * hard_loss + (1 - alpha) * soft_loss, soft_loss
+
+@tf.function
+def train_step_with_distillation(student_model, teacher_model, x, y_true, optimizer, temperature=1.0, alpha=0.5,
+                                 return_prediction: bool = False):
+    """
+    Single training step for student model with knowledge distillation.
+    """
+    # Get teacher predictions
+    y_pred_teacher = teacher_model(x, training=False)
+
+    # Compute loss and apply gradients
+    with tf.GradientTape() as tape:
+        y_pred_student = student_model(x, training=True)
+        hard_loss, soft_loss = knowledge_distillation_loss(y_true, y_pred_student, y_pred_teacher,
+                                                           temperature=temperature, alpha=alpha)
+        loss = tf.reduce_mean(hard_loss)
+        soft_loss = tf.reduce_mean(soft_loss)
+
+    grads = tape.gradient(loss, student_model.trainable_variables)
+    optimizer.apply_gradients(zip(grads, student_model.trainable_variables))
+    if return_prediction:
+        return loss, soft_loss, y_pred_student
+    else:
+        return loss, soft_loss
+
+@tf.function
+def masked_loss(y_true, logits):
     """
     Computes the masked loss for a classification task using sparse categorical cross-entropy.
 
@@ -26,13 +66,34 @@ def masked_loss(labels, logits):
         reduction=tf.keras.losses.Reduction.NONE
     )
 
-    loss = loss_fn(labels, logits)
-    mask = tf.cast(labels != 0, loss.dtype)
+    loss = loss_fn(y_true, logits)
+    mask = tf.cast(y_true != 0, loss.dtype)
     loss *= mask
 
     return tf.reduce_sum(loss) / tf.reduce_sum(mask)
+# @tf.function
+def distillation_loss(y_true, y_pred, alpha=0.5, temperature=1.0):
+    """
+    Computes the distillation loss.
+    Args:
+        y_true: True labels.
+        y_pred: Student model predictions.
+        teacher_pred: Teacher model predictions.
+        alpha: Weight for hard vs. soft loss.
+        temperature: Temperature for softening probabilities.
+    """
+    # Hard loss (e.g., sparse categorical crossentropy)
+    # hard_loss = tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred)
+    # hard_loss = masked_loss(y_true, y_pred)
 
+    # Soft loss: KL divergence with teacher's soft predictions
+    y_pred_teacher_soft = tf.nn.softmax(y_true / temperature)
+    y_pred_student_soft = tf.nn.softmax(y_pred / temperature)
+    soft_loss = tf.keras.losses.KLDivergence()(y_pred_teacher_soft, y_pred_student_soft) * (temperature ** 2)
+    # Combine losses
+    return soft_loss
 
+# @tf.function
 def masked_accuracy(y_true, y_pred):
     """
     Computes the masked accuracy for a classification task.
@@ -41,7 +102,7 @@ def masked_accuracy(y_true, y_pred):
     while ignoring entries where the true label is zero. The zero labels can represent
     padding or irrelevant data in the context of a sequence or batch.
 
-    :param y_true: A tensor of true labels with shape (batch_size,).
+    :param labels: A tensor of true labels with shape (batch_size,).
                             Labels should be of integer type and each label should
                             be an integer index corresponding to the class.
     :param y_pred: A tensor of predicted logits or probabilities with shape (batch_size, num_classes).
@@ -49,6 +110,7 @@ def masked_accuracy(y_true, y_pred):
                             activation or the raw logits.
     :return:
     """
+    # add teacher loss
     y_pred = tf.cast(tf.argmax(y_pred, axis=-1), y_true.dtype)
     mask = tf.cast(y_true != 0, tf.float32)
     accuracy = tf.cast(y_true == y_pred, tf.float32)
@@ -63,12 +125,17 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         super().__init__()
         self.embedding_dim = tf.cast(embedding_dim, tf.float32)
         self.warmup_steps = warmup_steps
+        step = tf.cast(1, dtype=tf.float32)
+        arg1 = tf.math.rsqrt(step)
+        arg2 = step * (self.warmup_steps ** -1.5)
+        self.learning_rate = tf.math.rsqrt(self.embedding_dim) * tf.math.minimum(arg1, arg2)
 
     def __call__(self, step):
         step = tf.cast(step, dtype=tf.float32)
         arg1 = tf.math.rsqrt(step)
         arg2 = step * (self.warmup_steps ** -1.5)
-        return tf.math.rsqrt(self.embedding_dim) * tf.math.minimum(arg1, arg2)
+        self.learning_rate = tf.math.rsqrt(self.embedding_dim) * tf.math.minimum(arg1, arg2)
+        return self.learning_rate
 
     def get_config(self):
         return {

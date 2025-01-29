@@ -59,7 +59,7 @@ def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: boo
         sentence = sentence[len(start_token):]
         values = values[1:]
     tokens = sentence.split()
-    assert len(tokens) == len(values), "Number of tokens and values must match!"
+    assert len(tokens) == len(values), f"Number of tokens and values must match! But are {len(tokens)} and {len(values)}"
 
     # Normalize values to [0, 1]
     norm = mcolors.Normalize(vmin=min(values), vmax=max(values))
@@ -119,7 +119,7 @@ def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: boo
             text_color = '#000000' if brightness > 0.5 else '#FFFFFF'
 
             # Style each character with its background and text color
-            styled_token = f'<span style="background-color: {color}; color: {text_color}; padding: 0 4px; border-radius: 4px;">{token}</span>'
+            styled_token = f'<span style="background-color: {color}; color: {text_color}; padding: 0 4px; border-radius: 4px;">{token.title()}</span>'
             styled_text.append(styled_token)
     return ' '.join(styled_text)
 
@@ -173,18 +173,20 @@ if __name__ == '__main__':
     # Initialize tokenizer
     tokenizer = TokenizerBertHuggingFace(vocab_path)
     titleGenerator = GenerateSummary(model, tokenizer, target_max_length, context_max_length)
-    abstract = "The dominant sequence transduction models are based on complex recurrent or convolutional neural " \
-               "networks in an encoder-decoder configuration. The best performing models also connect the encoder and " \
-               "decoder through an attention mechanism. We propose a new simple network architecture, " \
-               "the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions " \
-               "entirely. Experiments on two machine translation tasks show these models to be superior in quality " \
-               "while being more parallelizable and requiring significantly less time to train. Our model achieves " \
-               "28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best " \
-               "results, including ensembles by over 2 BLEU. On the WMT 2014 English-to-French translation task, " \
-               "our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 " \
-               "days on eight GPUs, a small fraction of the training costs of the best models from the literature. We " \
-               "show that the Transformer generalizes well to other tasks by applying it successfully to English " \
-               "constituency parsing both with large and limited training data."
+    abstract = """A framework is developed to explore the connection
+between effective optimization algorithms and the problems they
+are solving. A number of “no free lunch” (NFL) theorems are
+presented which establish that for any algorithm, any elevated
+performance over one class of problems is offset by perfor-
+mance over another class. These theorems result in a geometric
+interpretation of what it means for an algorithm to be well
+suited to an optimization problem. Applications of the NFL
+theorems to information-theoretic aspects of optimization and
+benchmark measures of performance are also presented. Other
+issues addressed include time-varying optimization problems and
+a priori “head-to-head” minimax distinctions between optimiza-
+tion algorithms, distinctions that result despite the NFL theorems’
+enforcing of a type of uniformity over all algorithms."""
     titles = titleGenerator.summarize(abstract, beam_width=2, temperature=1.2, return_attention_scores=True)
     print("Generated Titles: ")
     for title, score, attention_scores in titles:
@@ -201,7 +203,7 @@ if __name__ == '__main__':
                                                           (tokens_y, tokens_x)]):
 
             for layer_name, layer_attention_score in attention_score.items():
-                # plot_attention_heads(np.array(layer_attention_score)[0], f"{name}: {layer_name}", representation)
+                plot_attention_heads(np.array(layer_attention_score)[0], f"{name}: {layer_name}", representation)
                 for head in layer_attention_score[0]:
                     for i, repr in enumerate(set(representation)):
                         html_content = generate_heatmap_text(repr, np.mean(head, i)[:len(repr.split())],

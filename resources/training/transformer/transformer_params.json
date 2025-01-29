@@ -4,6 +4,6 @@
     "num_layers_encoder": 1,
     "num_layers_decoder": 1,
     "num_heads": 1,
-    "positional_embedding": "rope",
+    "positional_embedding": "learnable",
     "use_seperate_embedding": true
 }

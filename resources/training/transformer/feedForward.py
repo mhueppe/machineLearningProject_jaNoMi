@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def FeedForward(embedding_dim, dropout, name="feed_forward") -> tf.keras.Sequential:
+def FeedForward(embedding_dim, dropout, name="feed_forward", cropped=False) -> tf.keras.Sequential:
     """
     Return simple feed forward layer with one layer.
     :param embedding_dim: Dimension of the embedding
@@ -13,8 +13,14 @@ def FeedForward(embedding_dim, dropout, name="feed_forward") -> tf.keras.Sequent
     :param name: Name of the Feed forward layer
     :return: Sequential model
     """
-    return tf.keras.Sequential([
-        tf.keras.layers.Dense(embedding_dim, activation="relu"),
-        tf.keras.layers.Dense(embedding_dim),
-        tf.keras.layers.Dropout(dropout)
-    ], name=name)
+    if cropped:
+        return tf.keras.Sequential([
+            tf.keras.layers.Dense(embedding_dim, activation="relu"),
+            tf.keras.layers.Dropout(dropout)
+        ], name=name)
+    else:
+        return tf.keras.Sequential([
+            tf.keras.layers.Dense(embedding_dim, activation="relu"),
+            tf.keras.layers.Dense(embedding_dim),
+            tf.keras.layers.Dropout(dropout)
+        ], name=name)

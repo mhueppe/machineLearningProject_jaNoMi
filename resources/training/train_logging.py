@@ -7,8 +7,8 @@ import tensorflow as tf
 from resources.inference.generateSummary import GenerateSummary
 import numpy as np
 from resources.evaluation.metrics import compute_bleu, compute_cider, compute_rouge, compute_repeated_words
-
 class WandbLoggingCallback(Callback):
+
     def on_epoch_end(self, epoch, logs=None):
         """
         Called at the end of each epoch. Logs metrics and loss to W&B.
@@ -20,6 +20,7 @@ class WandbLoggingCallback(Callback):
             # Log all metrics provided in logs to W&B
             wandb.log({f"epoch_{key}": value for key, value in logs.items()})
             wandb.log({"epoch": epoch})  # Log epoch number separately
+
 
     def on_batch_end(self, batch, logs=None):
         """
@@ -54,26 +55,37 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
         cider_scores = []
         rouge_scores = []
         bleu_scores = []
+        cider_scores_abs = []
+        rouge_scores_abs = []
+        bleu_scores_abs = []
         repeated_words_scores = []
         title_cols = [f"Generated Title {i}" for i in range(beam_width)]
         table = wandb.Table(columns=["Input Text", "Reference Title"] + title_cols + ["Cider score", "Rouge",
-                                     "Bleu score", "Repeated Words"])
+                                     "Bleu score", "Repeated Words", "Cider score Abstract", "Rouge Abstract",
+                                     "Bleu score Abstract"])
         for input_text, summaries, reference_title in zip(
                 self.context, generated_summaries, self.reference
         ):
             cider_score = np.mean([compute_cider(reference_title, sum_gen) for sum_gen in summaries])
             rouge_score = np.mean([compute_rouge(reference_title, sum_gen)["rouge2"].fmeasure for sum_gen in summaries])
             bleu_score = np.mean([compute_bleu(reference_title,  sum_gen) for sum_gen in summaries])
+
+            cider_score_abstract = np.mean([compute_cider(input_text, sum_gen) for sum_gen in summaries])
+            rouge_score_abstract = np.mean([compute_rouge(input_text, sum_gen)["rouge2"].fmeasure for sum_gen in summaries])
+            bleu_score_abstract = np.mean([compute_bleu(input_text,  sum_gen) for sum_gen in summaries])
             repeated_words_score = np.mean([compute_repeated_words(sum_gen) for sum_gen in summaries])
 
             # add input, output, label and scores to table
 
             table.add_data(str(input_text), str(reference_title), *summaries, cider_score, rouge_score, bleu_score,
-                           repeated_words_score)
+                           repeated_words_score, cider_score_abstract, rouge_score_abstract, bleu_score_abstract)
 
             cider_scores.append(cider_score)
             rouge_scores.append(rouge_score)
             bleu_scores.append(bleu_score)
+            cider_scores_abs.append(cider_score_abstract)
+            rouge_scores_abs.append(rouge_score_abstract)
+            bleu_scores_abs.append(bleu_score_abstract)
             repeated_words_scores.append(repeated_words_score)
 
         wandb.log({
@@ -81,6 +93,9 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
             "cider": np.mean(cider_scores),
             "rouge": np.mean(rouge_scores),
             "bleu": np.mean(bleu_scores),
+            "cider_abstracts": np.mean(cider_scores_abs),
+            "rouge_abstracts": np.mean(rouge_scores_abs),
+            "bleu_abstracts": np.mean(bleu_scores_abs),
             "repeated_words": np.mean(repeated_words_scores)
         })
         # Log the table to WandB

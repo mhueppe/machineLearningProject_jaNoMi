@@ -4,10 +4,10 @@
 import tensorflow as tf
 from .feedForward import FeedForward
 from .positionalEncoding import PositionalEmbedding, SegmentEncoding, RelativePositionalEmbedding, \
-    RotaryPositionalEmbedding
+    RoPEEmbedding, LearnablePositionalEmbedding
 
 
-def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer") -> tf.keras.Model:
+def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer", **kwargs) -> tf.keras.Model:
     """
     Implements one layer in the encoder with pre-normalization.
     This encoder incorporates Multi-Head Attention and Feed-Forward layers with pre-normalization.
@@ -35,7 +35,7 @@ def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer") -> tf.
     # Pre-normalization before Feed-Forward
     normalized_attention_output = tf.keras.layers.LayerNormalization()(attention_output)
     name_ff = name.split("_")[0] + "_feed_forward_" + name.split("_")[-1]
-    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff)(normalized_attention_output)
+    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff, cropped=kwargs.get("feed_forward_cropped", True))(normalized_attention_output)
 
     # Add residual connection
     output = tf.keras.layers.Add()([attention_output, feed_forward])
@@ -44,7 +44,7 @@ def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer") -> tf.
     return model
 
 
-def Encoder(embedding, model_max_length, embedding_dim, dropout, num_layers, num_heads, positionalEmbedding):
+def Encoder(embedding, model_max_length, embedding_dim, dropout, num_layers, num_heads, positionalEmbedding, kwargs):
     """
     Implements Encoder.
     :param vocab_size: Size of the vocabulary
@@ -60,15 +60,17 @@ def Encoder(embedding, model_max_length, embedding_dim, dropout, num_layers, num
     if positionalEmbedding == "relative":
         x = RelativePositionalEmbedding(model_max_length // 2, embedding_dim)(embedding)
     elif positionalEmbedding == "rope":
-        x = RotaryPositionalEmbedding(model_max_length, embedding_dim)(embedding)
+        x = RoPEEmbedding(model_max_length, embedding_dim)(embedding)
     elif positionalEmbedding == "segment":
         x = SegmentEncoding(model_max_length // 2, embedding_dim)(embedding)
+    elif positionalEmbedding == "learnable":
+        x = LearnablePositionalEmbedding(model_max_length, embedding_dim)(embedding)
     else:
         x = PositionalEmbedding(model_max_length, embedding_dim)(embedding)
     x = tf.keras.layers.Dropout(dropout)(x)
 
     encoder_layers = [
-        EncoderLayer(num_heads, embedding_dim, dropout, name=f"encoder_layer_{i + 1}")
+        EncoderLayer(num_heads, embedding_dim, dropout, name=f"encoder_layer_{i + 1}", **kwargs)
         for i in range(num_layers)
     ]
     attention_scores = {}

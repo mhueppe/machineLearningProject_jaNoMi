@@ -53,9 +53,9 @@ class GenerateSummary:
         beams = [(start_token, 0)]  # List of tuples: (sequence, score)
         completed_beams = []
 
-        for _ in range(self.target_max_length - 1):
-            new_beams = []
-            for seq, score in beams:
+        for i in range(beam_width):
+
+            for seq, score in range(beam_width):
                 # Generate probabilities for the next token
                 probs, attention_scores = self.generate_next_token_probs(encoder_input, seq, temperature)
                 top_probs, top_tokens = tf.math.top_k(probs, k=beam_width)
