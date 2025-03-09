@@ -1,4 +1,4 @@
-# author: Michael Hï¿½ppe
+# author: Michael Hüppe
 # date: 11.11.2024
 # project: resources/inference.py
 import numpy as np
@@ -16,18 +16,16 @@ class GenerateSummary:
     Class for generating titles
     """
 
-    def __init__(self, model, tokenizer: Tokenizer, target_max_length: int, context_max_length: int, decoder_only: bool = False):
+    def __init__(self, model, tokenizer: Tokenizer, target_max_length: int, context_max_length: int):
         self.model = model
         self.tokenizer = tokenizer
         self.target_max_length = target_max_length
         self.context_max_length = context_max_length
-        self.maxSequenceLength = context_max_length + 1 + target_max_length
+
         self.token_start = tokenizer.START
         self.token_end = tokenizer.END
         self.token_pad = tokenizer.PAD
         self.token_unk = tokenizer.UNK
-        self.token_title = tokenizer.TITLE
-        self.decoder_only = decoder_only
         self.vocab_size = model.output_shape[0][-1] if isinstance(model.output_shape, list) else model.output_shape[-1]
         # Mask to discard [UNK] tokens and padding tokens
         self.mask = tf.scatter_nd(
@@ -37,10 +35,7 @@ class GenerateSummary:
         )
 
     def generate_next_token_probs(self, encoder_input, output, temperature):
-        if self.decoder_only:
-            output = self.model([tf.convert_to_tensor(output, dtype=tf.int32)])
-        else:
-            output = self.model([tf.convert_to_tensor(encoder_input, dtype=tf.int32), output])
+        output = self.model([tf.convert_to_tensor(encoder_input, dtype=tf.int32), output])
         if isinstance(output, tuple) or isinstance(output, list):
             logits, attention_scores = output
         else:
@@ -51,19 +46,12 @@ class GenerateSummary:
         probs = tf.nn.softmax(logits / temperature, axis=-1)
         return probs, attention_scores
 
-    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3,
-                    return_attention_scores: bool = False):
+    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3, return_attention_scores: bool = False):
         encoder_input = self.tokenizer.tokenize(text, max_length=self.context_max_length)
-        if self.decoder_only:
-            context_end = encoder_input[0].index(self.token_end)
-            encoder_input[0][context_end+1] = self.token_title
-            encoder_input[0][context_end+2] = self.token_start
-            beams = [(encoder_input, 0)]  # List of tuples: (sequence, score)
+        start_token = tf.constant(self.token_start, shape=(1, 1))
 
-        else:
-            start_token = tf.constant(self.token_start, shape=(1, 1))
-            # Initialize beams with the start token and zero score
-            beams = [(start_token, 0)]  # List of tuples: (sequence, score)
+        # Initialize beams with the start token and zero score
+        beams = [(start_token, 0)]  # List of tuples: (sequence, score)
         completed_beams = []
 
         for _ in range(self.target_max_length - 1):
@@ -79,7 +67,7 @@ class GenerateSummary:
                     new_seq = tf.concat([seq, tf.expand_dims(token, axis=0)], axis=-1)
                     new_score = score + tf.math.log(top_probs[0, i])  # Log probabilities for numerical stability
 
-                    if token == self.token_end or max(new_seq.shape) >= self.maxSequenceLength:
+                    if token == self.token_end or max(new_seq.shape) >= self.target_max_length:
                         completed_beams.append(
                             (new_seq, new_score, attention_scores) if return_attention_scores else (new_seq, new_score))
                     else:
@@ -97,20 +85,11 @@ class GenerateSummary:
 
         # Sort all completed beams by score and return the best `num_results`
         completed_beams = sorted(completed_beams, key=lambda x: x[1], reverse=True)[:num_results]
-        def prettify(seq):
-            if self.decoder_only:
-                seq = seq[0].numpy()
-                seq = seq[np.argwhere(seq == self.token_end)[0][0]+1:]
-                result = self.tokenizer.prettify(self.tokenizer.detokenize(seq))
-            else:
-                result = self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))
-            return result
-
         if return_attention_scores:
             return [(self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy())), score, attention_scores)
                     for seq, score, attention_scores in completed_beams]
         else:
-            return [prettify(seq)
+            return [self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))
                     for seq, score in completed_beams]
 
     def summarize(self, text: str, beam_width: int = 5, temperature: float = 1.1, num_results=None,

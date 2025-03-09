@@ -1,10 +1,9 @@
-# author: Michael HÃ¼ppe
+# author: Michael Hüppe
 # date: 11.11.2024
 # project: resources/transformer.py
 import tensorflow as tf
 from .encoder import Encoder
 from .decoder import Decoder
-
 
 def Transformer(
         context_vocab_size: int = 5000, target_vocab_size: int = 5000,
@@ -15,7 +14,7 @@ def Transformer(
         num_heads: int = 1,
         bottle_neck: int = 0,
         positional_embedding: str = "rope", use_seperate_embedding: bool = True,
-        return_attention_scores: bool = False, return_embedding: bool = False, **kwargs):
+        return_attention_scores: bool = False, **kwargs):
     """
     Implementation of a Transformer model after "Attention is all you need"
     :param context_vocab_size: Vocab size of the context
@@ -45,8 +44,7 @@ def Transformer(
         encoder_embedding = encoder_embedding_layer(encoder_input)
 
         x, encoder_attention = Encoder(encoder_embedding, model_max_length, embedding_dim, dropout,
-                                       num_layers_encoder, kwargs.get("num_heads_encoder", num_heads),
-                                       positional_embedding, kwargs)(
+                                       num_layers_encoder, kwargs.get("num_heads_encoder", num_heads), positional_embedding, kwargs)(
             encoder_embedding)
     else:
         x = encoder_input
@@ -72,12 +70,6 @@ def Transformer(
     outputs = x
     if return_attention_scores:
         outputs = (x, [encoder_attention, decoder_attention_causal, decoder_attention_causal_cross])
-
-    if return_embedding:
-        outputs = (x, [encoder_embedding])
-
-    if return_embedding and return_embedding:
-        outputs = (x, [encoder_attention, decoder_attention_causal, decoder_attention_causal_cross], encoder_embedding)
 
     model = tf.keras.Model(inputs=[encoder_input, decoder_input], outputs=outputs, name="Transformer")
     return model
