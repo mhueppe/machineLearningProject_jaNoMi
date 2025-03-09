@@ -27,9 +27,12 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
     # Pre-normalization before Causal Self-Attention
     normalized_query = tf.keras.layers.LayerNormalization()(query)
 
+    # Use per-head dimension rather than full embedding_dim
+    head_dim = embedding_dim // num_heads
+
     causal_self_attention, causal_self_attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
-        key_dim=embedding_dim,
+        key_dim=head_dim,
         dropout=dropout,
         name="CausalSelfAttention"
     )(

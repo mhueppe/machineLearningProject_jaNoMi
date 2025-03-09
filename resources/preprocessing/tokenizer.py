@@ -5,7 +5,7 @@ import logging
 import os.path
 from collections import Counter
 from typing import Union, List, Callable
-import tensorflow as tf 
+import tensorflow as tf
 import re
 import os
 from tokenizers import Tokenizer as HuggingFaceTokenizer
@@ -13,6 +13,7 @@ from tokenizers.models import WordPiece
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.trainers import WordPieceTrainer
 from typing import List, Union
+
 
 class Tokenizer:
     """
@@ -29,7 +30,6 @@ class Tokenizer:
         Tokenize the given string and return the tokens
         """
         raise NotImplemented
-
 
     def detokenize(self, tokens, **kwargs) -> str:
         """
@@ -49,7 +49,9 @@ class Tokenizer:
         Remove ugly chars and title
         :param t: string to prettify
         """
-        return re.sub(r"\s([.,;:?!])", r"\1", t).replace(" ##", "").replace("##", "").replace("[START]", "").replace("[END]", "").title()
+        return re.sub(r"\s([.,;:?!])", r"\1", t).replace(" ##", "").replace("##", "").replace("[START]", "").replace(
+            "[END]", "").title()
+
 
 class TokenizerBertHuggingFace(Tokenizer):
     """
@@ -77,7 +79,7 @@ class TokenizerBertHuggingFace(Tokenizer):
             raise ValueError("Reserved tokens [PAD], [START], or [END] are missing from the vocabulary.")
         self.vocab = list(self.vocab.keys())
 
-    def tokenize(self, texts: List[str], frame: bool = True, max_length: int = 250,  **kwargs):
+    def tokenize(self, texts: List[str], frame: bool = True, max_length: int = 250, **kwargs):
         """
         Tokenizes, pads, and truncates texts.
         :param texts: List of input strings to tokenize.
@@ -91,8 +93,9 @@ class TokenizerBertHuggingFace(Tokenizer):
             ids = self._tokenizer.encode(text).ids
             if frame:
                 ids = [self.START] + ids + [self.END]
-            ids = ids[:max_length]  # Truncate to max length
-            ids += [self.PAD] * (max_length - len(ids))  # Pad to max length
+            if max_length != -1:  # if -1 truncation and padding should be handled outwards
+                ids = ids[:max_length]  # Truncate to max length
+                ids += [self.PAD] * (max_length - len(ids))  # Pad to max length
             tokenized.append(ids)
 
         return tokenized
@@ -136,10 +139,12 @@ class TokenizerBertHuggingFace(Tokenizer):
             tokens = tokens[0]
         return self._tokenizer.decode(tokens, skip_special_tokens=True)
 
+
 class TokenizerBert(Tokenizer):
     """
     Implement the bert tokenizer
     """
+
     def __init__(self, vocab_file: Union[str, None]):
         import tensorflow_text as text
 
@@ -171,7 +176,6 @@ class TokenizerBert(Tokenizer):
             )
         tokenized = tokenized.to_tensor(default_value=self.PAD, shape=[None, max_length])  # Pad to max_length
         return tokenized
-
 
     @staticmethod
     def train(dataset, file_path: str = "vocab.txt", vocab_size: int = 8000,
@@ -219,22 +223,26 @@ class TokenizerBert(Tokenizer):
             self._tokenizer.detokenize(tokens),
             separator=" ", axis=-1).numpy()[0].decode("utf-8")))
 
+
 class TokenizerWord(Tokenizer):
     """
     Implement the bert tokenizer
     """
+
     def __init__(self, vocab_path: str, max_length: int == 250):
         # Load vocabulary from file
         with open(vocab_path, "r") as f:
             self.vocab = [line.strip() for line in f]
         # Create a new TextVectorization layer
-        self._tokenizer = tf.keras.layers.TextVectorization(max_tokens=len(self.vocab), output_sequence_length=max_length)
+        self._tokenizer = tf.keras.layers.TextVectorization(max_tokens=len(self.vocab),
+                                                            output_sequence_length=max_length)
 
         # Set the self.vocabulary
         self._tokenizer.set_vocabulary(self.vocab)
 
     @staticmethod
-    def train(data: List[str], file_path: str = "wordTokenizer.txt", vocab_size: int = 8000, reserved_tokens: List[str] = None,
+    def train(data: List[str], file_path: str = "wordTokenizer.txt", vocab_size: int = 8000,
+              reserved_tokens: List[str] = None,
               preprocessing: Callable = lambda x: x, max_length: int = 250) -> str:
         """
         Train the tokenizer
@@ -273,6 +281,7 @@ class TokenizerWord(Tokenizer):
         """
         return self.prettify(" ".join(self.vocab[0, 1:]))
 
+
 if __name__ == '__main__':
     # Configure logging to print INFO messages to the console
     logging.basicConfig(
@@ -282,7 +291,8 @@ if __name__ == '__main__':
     import json
     import pandas as pd
 
-    df = pd.read_csv("/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/arxiv-metadata-oai-snapshot.csv")
+    df = pd.read_csv(
+        "/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/arxiv-metadata-oai-snapshot.csv")
     abstracts = df["abstract"].values
     titles = df["title"].values
     logging.info("Read data")
@@ -292,5 +302,5 @@ if __name__ == '__main__':
     logging.info("Data filtered")
     file_path = TokenizerBert.train(abstracts + titles,
                                     file_path=r"arxiv_vocab_full.txt",
-                        vocab_size=vocab_size)
+                                    vocab_size=vocab_size)
     logging.info(f"Vocabulary of size {vocab_size} was saved under {file_path}")

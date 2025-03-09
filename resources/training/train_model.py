@@ -68,7 +68,6 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             model_settings["context_vocab_size"] = model_settings.get("vocab_size", 5000)
             model_settings["model_max_length"] = model_settings.get("context_max_length", 350)
             model = init_model(model_class, model_settings)
-        wandb.init(project=study_name, name=model_name, settings=wandb.Settings(init_timeout=120), resume=resume)
 
         # Iterate through arguments and update the dictionary
         for i in range(0, len(args), 2):  # Assuming arguments are in pairs (key, value)
@@ -82,6 +81,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             model_name = datetime.datetime.now().strftime("%m_%d_%Y__%H_%M_%S")
         if not model_dir:
             model_dir = f"trained_models/{model_type}/{model_name}"
+        wandb.init(project=study_name, name=model_name, settings=wandb.Settings(init_timeout=120), resume=resume)
 
         # Create a unique directory for each model trial
         os.makedirs(model_dir, exist_ok=True)
@@ -302,7 +302,6 @@ if __name__ == '__main__':
                 file_path=train_params["tokenizer_vocab_path"])
         tokenizer = TokenizerBertHuggingFace(train_params["tokenizer_vocab_path"])
 
-
         def dataGenerator_tokenized(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None):
             """
             Reads the csv file line by line so that the
@@ -313,20 +312,35 @@ if __name__ == '__main__':
             """
             dataGen = dataGenerator_preprocessed(file_path, inputs_idx, targets_idx, key_word_idx)
             for input_s, target_s in dataGen:
-                yield tokenizer.tokenize(input_s, frame=True, max_length=context_max_length)[0], \
-                    tokenizer.tokenize(target_s, frame=True, max_length=target_max_length)[0]
+                if decoderOnly:
+                    contexts, targets = tokenizer.tokenize(input_s, frame=True, max_length=-1)[0], \
+                        tokenizer.tokenize(target_s, frame=True, max_length=-1)[0]
+                    # Concatenate along axis 1
+                    contexts = contexts[:context_max_length]  # Truncate to max length
+                    targets = targets[:target_max_length]  # Truncate to max length
+                    concatenatedData = contexts + [tokenizer.TITLE] + targets
+                    max_len = (context_max_length+target_max_length+1 - len(concatenatedData))
+                    concatenatedData += [tokenizer.PAD] * max_len  # Pad to max length
+                    model_input = concatenatedData[:-1]
+                    model_ouptput = concatenatedData[1:]
+                    yield model_input, model_ouptput
+                else:
+                    yield tokenizer.tokenize(input_s, frame=True, max_length=context_max_length)[0], \
+                        tokenizer.tokenize(target_s, frame=True, max_length=target_max_length)[0]
 
+        c_max_len = context_max_length+target_max_length if decoderOnly else context_max_length
+        t_max_len = c_max_len if decoderOnly else target_max_length
 
         train_dataset = tf.data.Dataset.from_generator(
             dataGenerator_tokenized,
-            output_signature=(tf.TensorSpec(shape=context_max_length, dtype=tf.int32),
-                              tf.TensorSpec(shape=target_max_length, dtype=tf.int32)),
+            output_signature=(tf.TensorSpec(shape=c_max_len, dtype=tf.int32),
+                              tf.TensorSpec(shape=t_max_len, dtype=tf.int32)),
             args=(path_train, input_idx, label_idx, key_word_idx)
         )
         val_dataset = tf.data.Dataset.from_generator(
             dataGenerator_tokenized,
-            output_signature=(tf.TensorSpec(shape=context_max_length, dtype=tf.int32),
-                              tf.TensorSpec(shape=target_max_length, dtype=tf.int32)),
+            output_signature=(tf.TensorSpec(shape=c_max_len, dtype=tf.int32),
+                              tf.TensorSpec(shape=t_max_len, dtype=tf.int32)),
             args=(path_val, input_idx, label_idx, key_word_idx)
         )
     else:
@@ -350,15 +364,15 @@ if __name__ == '__main__':
             if train_params["tokenizer"] in ["bert", "word"]:
                 contexts, targets = tokenizeData(contexts, targets,
                                                  tokenizer,
-                                                 context_max_length, target_max_length)
+                                                 0, 0)
 
-            insert_tensor = tf.fill([tf.shape(contexts)[0], 1], tokenizer.TITLE)  # Shape (None, 1)
-            # Concatenate along axis 1
-            concatenatedData = tf.concat([contexts, insert_tensor, targets], axis=1)
-            print(concatenatedData)
-            model_input = concatenatedData[:, :-1]
-            model_ouptput = concatenatedData[:, 1:]
-            return model_input, model_ouptput
+                insert_tensor = tf.fill([tf.shape(contexts)[0], 1], tokenizer.TITLE)  # Shape (None, 1)
+                # Concatenate along axis 1
+                concatenatedData = tf.concat([contexts, insert_tensor, targets], axis=1)
+                concatenatedData = tf.pad(concatenatedData, [[0, 0], [0, 350 - tf.shape(concatenatedData)[1]]])
+                contexts = concatenatedData[:, :-1]
+                targets = concatenatedData[:, 1:]
+            return contexts, targets
 
     train_dataset = train_dataset.batch(batch_size).map(
         tokenization, tf.data.AUTOTUNE

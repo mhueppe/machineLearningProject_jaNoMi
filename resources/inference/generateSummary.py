@@ -52,7 +52,7 @@ class GenerateSummary:
         return probs, attention_scores
 
     def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3, return_attention_scores: bool = False):
-        encoder_input = self.tokenizer.tokenize(text, max_length=self.context_max_length)
+        encoder_input = self.tokenizer.tokenize(text, max_length=-1 if self.decoder_only else self.context_max_length )
         if self.decoder_only:
             context_end = encoder_input[0].index(self.token_end)
             encoder_input[0][context_end+1] = self.token_title
