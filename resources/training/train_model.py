@@ -38,7 +38,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         # Model creation
         if model_type == "Transformer":
             model_class = Transformer
-        if model_type == "TransformerDecoderOnly":
+        elif model_type == "TransformerDecoderOnly":
             model_class = TransformerDecoderOnly
         elif model_type == "RNN":
             model_class = RNN
@@ -68,6 +68,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             model_settings["context_vocab_size"] = model_settings.get("vocab_size", 5000)
             model_settings["model_max_length"] = model_settings.get("context_max_length", 350)
             model = init_model(model_class, model_settings)
+        wandb.init(project=study_name, name=model_name, settings=wandb.Settings(init_timeout=120), resume=resume)
 
         # Iterate through arguments and update the dictionary
         for i in range(0, len(args), 2):  # Assuming arguments are in pairs (key, value)
@@ -88,7 +89,6 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         history_path = os.path.join(model_dir, "history.json")
         summary_path = os.path.join(model_dir, "summary.txt")
 
-        wandb.init(project=study_name, name=model_name, settings=wandb.Settings(init_timeout=120), resume=resume)
         wandb.config.update(settings)
         wandb.config.update(model_settings)
         # Callback to stop training early if accuracy does not increase for 5 epochs
