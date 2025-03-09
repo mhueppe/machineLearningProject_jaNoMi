@@ -1,4 +1,4 @@
-# author: Michael HÃ¼ppe
+# author: Michael Hüppe
 # date: 11.11.2024
 # project: resources/transformer.py
 import tensorflow as tf
@@ -14,7 +14,7 @@ def Transformer(
         num_heads: int = 1,
         bottle_neck: int = 0,
         positional_embedding: str = "rope", use_seperate_embedding: bool = True,
-        return_attention_scores: bool = False, return_embedding: bool = False, **kwargs):
+        return_attention_scores: bool = False, **kwargs):
     """
     Implementation of a Transformer model after "Attention is all you need"
     :param context_vocab_size: Vocab size of the context
@@ -71,7 +71,5 @@ def Transformer(
     if return_attention_scores:
         outputs = (x, [encoder_attention, decoder_attention_causal, decoder_attention_causal_cross])
 
-    if return_embedding:
-        outputs = (x,[encoder_embedding])
     model = tf.keras.Model(inputs=[encoder_input, decoder_input], outputs=outputs, name="Transformer")
     return model

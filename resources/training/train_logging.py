@@ -1,4 +1,4 @@
-# author: Michael HÃ¼ppe
+# author: Michael Hüppe
 # date: 16.12.2024
 # project: resources/train_logging.py
 import wandb
@@ -69,7 +69,7 @@ class SummarizationCallback(tf.keras.callbacks.Callback):
             cider_score = np.mean([compute_cider(reference_title, sum_gen) for sum_gen in summaries])
             rouge_score = np.mean([compute_rouge(reference_title, sum_gen)["rouge2"].fmeasure for sum_gen in summaries])
             bleu_score = np.mean([compute_bleu(reference_title,  sum_gen) for sum_gen in summaries])
-
+            
             cider_score_abstract = np.mean([compute_cider(input_text, sum_gen) for sum_gen in summaries])
             rouge_score_abstract = np.mean([compute_rouge(input_text, sum_gen)["rouge2"].fmeasure for sum_gen in summaries])
             bleu_score_abstract = np.mean([compute_bleu(input_text,  sum_gen) for sum_gen in summaries])

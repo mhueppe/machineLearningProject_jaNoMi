@@ -1,9 +1,11 @@
 {
-    "embedding_dim": 4,
+    "embedding_dim": 32,
     "dropout": 0.1,
     "num_layers_encoder": 1,
-    "num_layers_decoder": 1,
-    "num_heads": 1,
-    "positional_embedding": "learnable",
-    "use_seperate_embedding": true
+    "num_layers_decoder": 1,	
+    "num_heads_encoder": 1,
+    "num_heads_decoder": 1,
+    "positional_embedding": "absolute",
+    "use_seperate_embedding": false, 
+    "bottle_neck": 32
 }
