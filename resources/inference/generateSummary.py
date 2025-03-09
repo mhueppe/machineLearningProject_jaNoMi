@@ -51,8 +51,7 @@ class GenerateSummary:
         probs = tf.nn.softmax(logits / temperature, axis=-1)
         return probs, attention_scores
 
-    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3,
-                    return_attention_scores: bool = False):
+    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3, return_attention_scores: bool = False):
         encoder_input = self.tokenizer.tokenize(text, max_length=self.context_max_length)
         if self.decoder_only:
             context_end = encoder_input[0].index(self.token_end)
