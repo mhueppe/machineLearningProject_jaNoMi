@@ -3,7 +3,6 @@
 # project: resources/dataPreprocessing.py
 
 # Create a custom standardization function
-from resources.preprocessing.tokenizer import Tokenizer
 import tensorflow as tf
 import csv
 import random
@@ -20,6 +19,7 @@ def preprocessing(text: str) -> str:
     text = text.lower()
     # Remove line breaks
     text = re.sub(r"\n+", " ", text)
+    text = re.sub(r" !", "!", text) # cheat to use ! for title marking and ##! for actual use of !
     # Remove hyperlinks
     text = re.sub(r"https?://[^\s\n\r]+|www\.[^\s\n\r]+", "", text)
     # Remove Twitter usernames and email addresses

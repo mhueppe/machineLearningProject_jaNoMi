@@ -22,6 +22,8 @@ class Tokenizer:
     END = 3
     PAD = 0
     UNK = 1
+    TITLE = 4
+
     def tokenize(self, text: str, **kwargs):
         """
         Tokenize the given string and return the tokens
@@ -107,7 +109,7 @@ class TokenizerBertHuggingFace(Tokenizer):
         :return: Path to the saved tokenizer.
         """
         if reserved_tokens is None:
-            reserved_tokens = ["[PAD]", "[UNK]", "[START]", "[END]"]
+            reserved_tokens = ["[PAD]", "[UNK]", "[START]", "[END]", "[TITLE]"]
 
         # Initialize tokenizer and trainer
         tokenizer = HuggingFaceTokenizer(WordPiece(unk_token="[UNK]"))

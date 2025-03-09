@@ -6,8 +6,8 @@ import tensorflow as tf
 
 from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy, distillation_loss
 from resources.training.transformer.transformer import Transformer
+from resources.training.transformer.transformer_decoder_only import TransformerDecoderOnly
 from resources.training.rnn.rnn import RNN
-# from resources.preprocessing.dataPreprocessing import preprocessing
 
 
 def init_model(Model, params):
@@ -31,6 +31,8 @@ def init_model(Model, params):
     if isinstance(Model, str):
         if Model == "Transformer":
             Model = Transformer
+        if Model == "TransformerDecoderOnly":
+            Model = TransformerDecoderOnly
         elif Model == "RNN":
             Model = RNN
         else:
@@ -45,26 +47,3 @@ def init_model(Model, params):
     )
 
     return model
-
-
-def init_tokenizers(titles, abstracts, params):
-    contexts = tf.data.Dataset.from_tensor_slices(list(abstracts))
-    targets = tf.data.Dataset.from_tensor_slices(list(titles))
-    data_adapt = contexts.concatenate(targets).batch(params["batch_size"])
-
-    context_tokenizer = tf.keras.layers.TextVectorization(
-        max_tokens=params["vocab_size"],
-        standardize=preprocessing,
-        output_sequence_length=params["context_max_length"]
-    )
-    context_tokenizer.adapt(data_adapt)
-    vocab = np.array(context_tokenizer.get_vocabulary())
-
-    target_tokenizer = tf.keras.layers.TextVectorization(
-        max_tokens=context_tokenizer.vocabulary_size(),
-        standardize=preprocessing,
-        output_sequence_length=params["target_max_length"] + 1,
-        vocabulary=vocab
-    )
-
-    return context_tokenizer, target_tokenizer

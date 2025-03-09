@@ -80,7 +80,7 @@ def TransformerDecoderOnly(
     :param return_attention_scores: If True, returns attention scores for each decoder layer
     :return: Keras Model
     """
-
+    model_max_length = kwargs["context_max_length"] + kwargs["target_max_length"] + 1
     # Define input
     decoder_input = tf.keras.Input(shape=(None,), name="decoder_input")
 
@@ -114,7 +114,7 @@ def TransformerDecoderOnly(
     causal_self_attention_scores = {}
 
     for layer in decoder_layers:
-        x, causal_attention_scores, _ = layer(x)  # Remove cross-attention
+        x, causal_attention_scores = layer(x)  # Remove cross-attention
         causal_self_attention_scores[layer.name] = causal_attention_scores
 
     # Optional bottleneck layer

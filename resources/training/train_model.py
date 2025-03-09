@@ -1,4 +1,4 @@
-# author: Michael Hüppe
+# author: Michael HÃ¼ppe
 # date: 16.12.2024
 # project: resources/train_model.py
 import datetime
@@ -15,6 +15,7 @@ from resources.preprocessing.dataPreprocessing import tokenizeData, preprocessin
 from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord, Tokenizer, TokenizerBertHuggingFace
 from resources.training.rnn.rnn import RNN
 from resources.training.transformer.transformer import Transformer
+from resources.training.transformer.transformer_decoder_only import TransformerDecoderOnly
 from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv, dataGenerator
 
 # external
@@ -37,8 +38,11 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         # Model creation
         if model_type == "Transformer":
             model_class = Transformer
+        if model_type == "TransformerDecoderOnly":
+            model_class = TransformerDecoderOnly
         elif model_type == "RNN":
             model_class = RNN
+
         else:
             raise KeyError
         pre_trained_models_path = settings.get("pre_trained_weights_path", None)
@@ -124,7 +128,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
         wandb.log({"model_summary": model_summary_str})
         target_max_length = settings["target_max_length"]
         titleGenerator = GenerateSummary(model, tokenizer,
-                                         target_max_length, context_max_length)
+                                         target_max_length, context_max_length, decoder_only=decoderOnly)
         val_context = evaluationBatch[0]
         val_reference = evaluationBatch[1]
         summarizationCB = SummarizationCallback(
@@ -214,14 +218,13 @@ if __name__ == '__main__':
 
     # Mask to discard [UNK] tokens and padding tokens
     model_settings = json.load(open(train_params["model_params_path"]))
-    nEncoderLayer = model_settings.get("num_layers_encoder", 1)
-    decoderOnly = nEncoderLayer == 0
+    decoderOnly = train_params["model_type"] == "TransformerDecoderOnly"
     vocab_exists = os.path.isfile(train_params["tokenizer_vocab_path"])
 
     import re
 
-    train_df = pd.read_csv(path_train,
-                           usecols=["Unnamed: 0"])
+    # train_df = pd.read_csv(path_train,
+    #                        usecols=["Unnamed: 0"])
     def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None,
                                    train: bool = True):
         """
@@ -331,33 +334,39 @@ if __name__ == '__main__':
 
 
     # Preprocessing train and validation datasets
-    # TODO: Concatenate context and target
-    def concatenateContextTarget(contexts, targets):
-        if not decoderOnly:
-            return contexts, targets
-        else:
-            return contexts + targets
-
 
     @tf.function
     def tokenization(contexts, targets):
         # dynamic tokenizer
-        if train_params["tokenizer"] in ["bert", "word"]:
-            contexts, targets = tokenizeData(contexts, targets,
-                                             tokenizer,
-                                             context_max_length, target_max_length)
-        targets_in = targets[:, :-1]
-        targets_out = targets[:, 1:]
-        return (contexts, targets_in), targets_out
+        if not decoderOnly:
+            if train_params["tokenizer"] in ["bert", "word"]:
+                contexts, targets = tokenizeData(contexts, targets,
+                                                 tokenizer,
+                                                 context_max_length, target_max_length)
+            targets_in = targets[:, :-1]
+            targets_out = targets[:, 1:]
+            return (contexts, targets_in), targets_out
+        else:
+            if train_params["tokenizer"] in ["bert", "word"]:
+                contexts, targets = tokenizeData(contexts, targets,
+                                                 tokenizer,
+                                                 context_max_length, target_max_length)
 
+            insert_tensor = tf.fill([tf.shape(contexts)[0], 1], tokenizer.TITLE)  # Shape (None, 1)
+            # Concatenate along axis 1
+            concatenatedData = tf.concat([contexts, insert_tensor, targets], axis=1)
+            print(concatenatedData)
+            model_input = concatenatedData[:, :-1]
+            model_ouptput = concatenatedData[:, 1:]
+            return model_input, model_ouptput
 
     train_dataset = train_dataset.batch(batch_size).map(
         tokenization, tf.data.AUTOTUNE
-    ).map(concatenateContextTarget, tf.data.AUTOTUNE).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
+    ).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
     val_dataset = val_dataset.batch(batch_size).map(
         tokenization
-    ).map(concatenateContextTarget).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
+    ).shuffle(1024).repeat().prefetch(tf.data.AUTOTUNE)
 
     train_model(train_params, tokenizer, train_dataset, val_dataset,
                 evaluationBatch=(val_context[:batch_size], val_reference[:batch_size]))
