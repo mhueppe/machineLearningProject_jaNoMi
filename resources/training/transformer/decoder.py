@@ -1,4 +1,4 @@
-# author: Michael HÃ¼ppe
+# author: Michael Hüppe
 # date: 11.11.2024
 # project: resources/decoder.py
 import tensorflow as tf

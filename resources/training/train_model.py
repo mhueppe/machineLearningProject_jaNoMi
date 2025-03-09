@@ -1,4 +1,4 @@
-# author: Michael HÃ¼ppe
+# author: Michael Hüppe
 # date: 16.12.2024
 # project: resources/train_model.py
 import datetime

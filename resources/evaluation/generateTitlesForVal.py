@@ -24,14 +24,14 @@ def process_models(model_names, data_path, vocab_path, output_path):
         output_path (str): Path to save the updated dataset.
     """
     # Load dataset
-    df = pd.read_csv(data_path, nrows=3000)
+    df = pd.read_csv(data_path)
     if "abstract" not in df.columns:
         raise ValueError("The input CSV file must contain a column named 'abstract'.")
 
     # Iterate over each model
     for model_name in model_names:
         print(f"Processing model: {model_name}")
-        model_path = fr"..\..\trained_models\Transformer\{model_name}"
+        model_path = fr"/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/trained_models/Transformer/{model_name}"
         try:
             # Load model parameters
             train_params = json.load(open(os.path.join(model_path, "modelInfo.json")))
@@ -59,11 +59,12 @@ def process_models(model_names, data_path, vocab_path, output_path):
 
             # Generate titles for each abstract
             generated_titles = []
-            for abstract in df["abstract"]:
+            for i, abstract in enumerate(df["abstract"]):
                 try:
                     titles = titleGenerator.summarize(abstract, beam_width=1, temperature=1.1,
                                                       return_attention_scores=False)
                     generated_titles.append(titles[0])
+                    print(i)
                 except Exception as e:
                     print(f"Error generating title for abstract: {e}")
                     generated_titles.append("")
@@ -106,8 +107,8 @@ if __name__ == "__main__":
     ]
 
     # Paths
-    data_path = r"..\..\data\arxiv_data_val_keyWord_csv_section.csv"  # Path to the input CSV file
-    vocab_path = r"..\..\arxiv_vocab_8000.json"  # Path to the vocabulary JSON
+    data_path = r"/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/arxiv_data_val.csv"  # Path to the input CSV file
+    vocab_path = r"/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/arxiv_vocab_8000.json"  # Path to the vocabulary JSON
     output_path = data_path.replace(".csv", "_results.csv")  # Output CSV file path
 
     # Process models and generate titles

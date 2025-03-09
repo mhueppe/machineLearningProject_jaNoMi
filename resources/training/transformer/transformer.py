@@ -64,8 +64,7 @@ def Transformer(
     x, decoder_attention_causal, decoder_attention_causal_cross = Decoder(decoder_embedding, model_max_length,
                                                                           embedding_dim, dropout, num_layers_decoder,
                                                                           kwargs.get("num_heads_decoder", num_heads),
-                                                                          positional_embedding, kwargs)(
-        [decoder_embedding, x])
+                                                                          positional_embedding, kwargs)([decoder_embedding, x])
     if bottle_neck != 0:
         x = tf.keras.layers.Dense(bottle_neck)(x)
     x = tf.keras.layers.Dense(target_vocab_size)(x)

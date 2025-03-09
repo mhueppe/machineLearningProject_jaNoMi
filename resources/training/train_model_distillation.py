@@ -157,7 +157,7 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             for batch_i in range(steps_per_epoch):
                 batch = train_dataset.take(1).as_numpy_iterator().next()
                 loss, soft_loss, y_pred = train_step_with_distillation(model, teacher_model, batch[0], batch[1],
-                                                               model.optimizer, temperature=1.2, alpha=0.3,
+                                                               model.optimizer, temperature=1.2, alpha=0.7,
                                                                return_prediction=True)
                 m_accuracy = masked_accuracy(batch[1], y_pred)
                 masked_accuracy_epoch += m_accuracy
