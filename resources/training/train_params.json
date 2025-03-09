@@ -17,7 +17,7 @@
     "vocab_size" : 7671,
     "tokenizer": "huggingFace",
     "tokenizer_vocab_path": "C:\\Users\\mhuep\\Master_Informatik\\Semester_3\\MachineLearning\\arxiv_vocab_8000.json",
-    "model_type": "Transformer",
-    "model_params_path": "C:\\Users\\mhuep\\Master_Informatik\\Semester_3\\MachineLearning\\resources\\training\\transformer\\transformer_params.json"
+    "model_type": "TransformerDecoderOnly",
+    "model_params_path": "C:\\Users\\mhuep\\Master_Informatik\\Semester_3\\MachineLearning\\resources\\training\\transformer\\transformer_decoder_only_params.json"
 
 }

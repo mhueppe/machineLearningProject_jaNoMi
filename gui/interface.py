@@ -195,10 +195,13 @@ class Interface(QWidget, Ui_Form):
             self.tokenizer.tokenize(preprocessing(prediction)))
         tokens_x = "[START] " + self.tokenizer.detokenize(
             self.tokenizer.tokenize(preprocessing(self.textBrowser_abstract.toPlainText())))
-        html_content = generate_heatmap_text(tokens_x,
-                                             np.mean(np.mean(attention[2]["decoder_layer_1"][0], axis=0), axis=0)[
-                                             :len(tokens_x.split())], "Greens", combine_tokens=True)
-        self.textBrowser_abstract.setHtml(html_content)
+        try:
+            html_content = generate_heatmap_text(tokens_x,
+                                                 np.mean(np.mean(attention[2]["decoder_layer_1"][0], axis=0), axis=0)[
+                                                 :len(tokens_x.split())], "Greens", combine_tokens=True)
+            self.textBrowser_abstract.setHtml(html_content)
+        except Exception:
+            pass
 
         # attention = '<span style="background-color: #79c67a; color: #000000; padding: 0 4px; border-radius: 4px;">attention</span> <span style="background-color: #62bb6d; color: #000000; padding: 0 4px; border-radius: 4px;">based</span> <span style="background-color: #00441b; color: #FFFFFF; padding: 0 4px; border-radius: 4px;">recurrent</span> <span style="background-color: #005020; color: #FFFFFF; padding: 0 4px; border-radius: 4px;">neural</span> <span style="background-color: #70c274; color: #000000; padding: 0 4px; border-radius: 4px;">network</span> <span style="background-color: #f7fcf5; color: #000000; padding: 0 4px; border-radius: 4px;">models</span>'
 

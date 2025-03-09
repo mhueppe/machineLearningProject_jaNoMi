@@ -5,6 +5,7 @@ import tensorflow as tf
 from .encoder import Encoder
 from .decoder import Decoder
 
+
 def Transformer(
         context_vocab_size: int = 5000, target_vocab_size: int = 5000,
         model_max_length: int = 250,
@@ -44,7 +45,8 @@ def Transformer(
         encoder_embedding = encoder_embedding_layer(encoder_input)
 
         x, encoder_attention = Encoder(encoder_embedding, model_max_length, embedding_dim, dropout,
-                                       num_layers_encoder, kwargs.get("num_heads_encoder", num_heads), positional_embedding, kwargs)(
+                                       num_layers_encoder, kwargs.get("num_heads_encoder", num_heads),
+                                       positional_embedding, kwargs)(
             encoder_embedding)
     else:
         x = encoder_input
@@ -62,7 +64,8 @@ def Transformer(
     x, decoder_attention_causal, decoder_attention_causal_cross = Decoder(decoder_embedding, model_max_length,
                                                                           embedding_dim, dropout, num_layers_decoder,
                                                                           kwargs.get("num_heads_decoder", num_heads),
-                                                                          positional_embedding, kwargs)([decoder_embedding, x])
+                                                                          positional_embedding, kwargs)(
+        [decoder_embedding, x])
     if bottle_neck != 0:
         x = tf.keras.layers.Dense(bottle_neck)(x)
     x = tf.keras.layers.Dense(target_vocab_size)(x)
@@ -72,6 +75,10 @@ def Transformer(
         outputs = (x, [encoder_attention, decoder_attention_causal, decoder_attention_causal_cross])
 
     if return_embedding:
-        outputs = (x,[encoder_embedding])
+        outputs = (x, [encoder_embedding])
+
+    if return_embedding and return_embedding:
+        outputs = (x, [encoder_attention, decoder_attention_causal, decoder_attention_causal_cross], encoder_embedding)
+
     model = tf.keras.Model(inputs=[encoder_input, decoder_input], outputs=outputs, name="Transformer")
     return model

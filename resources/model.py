@@ -18,8 +18,7 @@ from .model_types import ModelTypes
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 import nltk
-from rake_nltk import Rake
-from keybert import KeyBERT
+# from keybert import KeyBERT
 
 
 class JaNoMiModel:
@@ -32,17 +31,19 @@ class JaNoMiModel:
         nltk.download('stopwords')
         nltk.download('punkt_tab')
         self._vectorizer = TfidfVectorizer(max_features=10, stop_words='english')  # Adjust max_features as needed
-        self._rake = Rake(max_length=3)
-        self._kw_model = KeyBERT()
+        # self._kw_model = KeyBERT()
 
-        with open(os.path.join("resources", "final_model", "modelInfo.json")) as f:
+        path = r"C:\Users\mhuep\Master_Informatik\Semester_3\MachineLearning\trained_models\Transformer"
+        model_name = "01_29_2025__01_26_19"
+        path = os.path.join(path, model_name)
+        with open(os.path.join(path, "modelInfo.json")) as f:
             params = json.load(f)["model_parameters"]
         params["return_attention_scores"] = True
         #titles, abstracts = load_data('Arxiv', params)
         #self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts, params)
         self._tokenizer = TokenizerBertHuggingFace('arxiv_vocab_8000.json')
         self._headliner = init_model(Transformer, params)
-        self._headliner.load_weights(os.path.join("resources","final_model","model.weights.h5"))
+        self._headliner.load_weights(os.path.join(path,"modelCheckpoint.weights.h5"))
 
 
     @staticmethod
@@ -105,23 +106,14 @@ class JaNoMiModel:
         :param userInput:
         :return:
         """
-        # Initialize RAKE with stopwords
-        self._rake.extract_keywords_from_text(userInput)
-
-        # Get ranked phrases (top keywords)
-        important_phrases = self._rake.get_ranked_phrases()
-        return important_phrases[:10]
-
+        return userInput
     def generateOutput_keyBert(self, userInput: str):
         """
         Extract keywords based on key Bert
         :param userInput: Input of the user
         :return:
         """
-        # Extract keywords
-        keywords = self._kw_model.extract_keywords(userInput, top_n=10)
-        return [word for word, _ in keywords]  # List of most important words
-
+        return userInput
 
     # TODO: adjust (default) params vs kwargs
     def generateOutput_headliner(self, user_input: str, num_results: int = 1, temperature: float = 1, gui_cb: Callable = None):
