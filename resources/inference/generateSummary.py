@@ -52,11 +52,10 @@ class GenerateSummary:
         return probs, attention_scores
 
     def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3, return_attention_scores: bool = False):
-        encoder_input = self.tokenizer.tokenize(text, max_length=-1 if self.decoder_only else self.context_max_length )
+        encoder_input = self.tokenizer.tokenize(text, max_length=self.context_max_length)
         if self.decoder_only:
-            context_end = encoder_input[0].index(self.token_end)
-            encoder_input[0][context_end+1] = self.token_title
-            encoder_input[0][context_end+2] = self.token_start
+            encoder_input[0].append(self.token_title)
+            encoder_input[0].append(self.token_start)
             beams = [(encoder_input, 0)]  # List of tuples: (sequence, score)
 
         else:
@@ -99,7 +98,7 @@ class GenerateSummary:
         def prettify(seq):
             if self.decoder_only:
                 seq = seq[0].numpy()
-                seq = seq[np.argwhere(seq == self.token_end)[0][0]+1:]
+                #seq = seq[np.argwhere(seq == self.token_end)[0][0]+2:]
                 result = self.tokenizer.prettify(self.tokenizer.detokenize(seq))
             else:
                 result = self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))

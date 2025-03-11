@@ -32,7 +32,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
 
     causal_self_attention, causal_self_attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
-        key_dim=head_dim,
+        key_dim=embedding_dim,
         dropout=dropout,
         name="CausalSelfAttention"
     )(
