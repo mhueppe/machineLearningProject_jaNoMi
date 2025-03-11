@@ -313,16 +313,18 @@ if __name__ == '__main__':
             dataGen = dataGenerator_preprocessed(file_path, inputs_idx, targets_idx, key_word_idx)
             for input_s, target_s in dataGen:
                 if decoderOnly:
-                    contexts, targets = tokenizer.tokenize(input_s, frame=True, max_length=-1)[0], \
-                        tokenizer.tokenize(target_s, frame=True, max_length=-1)[0]
+                    contexts, targets = tokenizer.tokenize(input_s, frame=False, max_length=-1)[0], \
+                        tokenizer.tokenize(target_s, frame=False, max_length=-1)[0]
                     # Concatenate along axis 1
                     contexts = contexts[:context_max_length]  # Truncate to max length
                     targets = targets[:target_max_length]  # Truncate to max length
-                    concatenatedData = contexts + [tokenizer.TITLE] + targets
-                    max_len = (context_max_length+target_max_length+1 - len(concatenatedData))
-                    concatenatedData += [tokenizer.PAD] * max_len  # Pad to max length
+                    concatenatedData = [tokenizer.START] + contexts + [tokenizer.TITLE] + targets + [tokenizer.END]
+                    max_len = context_max_length + target_max_length + 1
+                    concatenatedData += [tokenizer.PAD] * (max_len - len(concatenatedData))  # Pad to max length
+                    concatenatedData = concatenatedData[:max_len]
                     model_input = concatenatedData[:-1]
                     model_ouptput = concatenatedData[1:]
+
                     yield model_input, model_ouptput
                 else:
                     yield tokenizer.tokenize(input_s, frame=True, max_length=context_max_length)[0], \
