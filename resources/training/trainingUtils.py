@@ -1,4 +1,4 @@
-# author: Michael Hüppe
+# author: Michael Hï¿½ppe
 # date: 11.11.2024
 # project: resources/trainingUtils.py
 import tensorflow as tf
@@ -71,6 +71,48 @@ def masked_loss(y_true, logits):
     loss *= mask
 
     return tf.reduce_sum(loss) / tf.reduce_sum(mask)
+
+@tf.function
+def masked_loss_decoder_only(y_true, logits, sep_token_id=4):
+    """
+    Computes the masked loss for a decoder-only model using sparse categorical cross-entropy.
+
+    This function calculates the loss between the true labels and the predicted logits,
+    while ignoring entries before the separator token (`[SEP]`). The loss is only computed
+    for tokens that come after the separator token.
+
+    :param y_true: A tensor of true labels with shape (batch_size, seq_length).
+                   Labels should be of integer type and each label should be an integer
+                   index corresponding to the class.
+    :param logits: A tensor of predicted logits with shape (batch_size, seq_length, num_classes).
+                   This should be the raw output from the model (not softmaxed).
+    :param sep_token_id: The token ID of the separator token (`[SEP]`).
+    :return: A scalar tensor representing the mean masked loss across the non-masked tokens.
+    """
+    # Compute the loss
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True,
+        reduction=tf.keras.losses.Reduction.NONE
+    )
+    loss = loss_fn(y_true, logits)
+
+    # Create a mask to ignore tokens before the separator
+    mask = tf.cast(y_true != 0, loss.dtype)  # Ignore padding tokens
+    sep_mask = tf.cast(y_true == sep_token_id, tf.int32)  # Find separator tokens
+
+    # Cumulative sum to identify positions after the separator
+    sep_mask_cumsum = tf.cumsum(sep_mask, axis=-1)
+    causal_mask = tf.cast(sep_mask_cumsum > 0, loss.dtype)  # Mask for tokens after separator
+
+    # Combine masks (ignore padding and tokens before separator)
+    final_mask = mask * causal_mask
+
+    # Apply the mask to the loss
+    loss *= final_mask
+
+    # Compute the mean loss over non-masked tokens
+    return tf.reduce_sum(loss) / tf.reduce_sum(final_mask)
+
 # @tf.function
 def distillation_loss(y_true, y_pred, alpha=0.5, temperature=1.0):
     """
@@ -118,6 +160,43 @@ def masked_accuracy(y_true, y_pred):
 
     return tf.reduce_sum(accuracy) / tf.reduce_sum(mask)
 
+@tf.function
+def masked_accuracy_decoder_only(y_true, y_pred, sep_token_id=102):
+    """
+    Computes the masked accuracy for a decoder-only model.
+
+    This function calculates the accuracy of the predicted classes against the true labels,
+    while ignoring entries before the separator token (`[SEP]`). The accuracy is only computed
+    for tokens that come after the separator token.
+
+    :param y_true: A tensor of true labels with shape (batch_size, seq_length).
+                   Labels should be of integer type and each label should be an integer
+                   index corresponding to the class.
+    :param y_pred: A tensor of predicted logits or probabilities with shape (batch_size, seq_length, num_classes).
+                   This can be the output from the model after applying a softmax activation or the raw logits.
+    :param sep_token_id: The token ID of the separator token (`[SEP]`).
+    :return: A scalar tensor representing the mean masked accuracy across the non-masked tokens.
+    """
+    # Convert predicted logits to class indices
+    y_pred = tf.cast(tf.argmax(y_pred, axis=-1), y_true.dtype)
+
+    # Create a mask to ignore tokens before the separator
+    mask = tf.cast(y_true != 0, tf.float32)  # Ignore padding tokens
+    sep_mask = tf.cast(y_true == sep_token_id, tf.int32)  # Find separator tokens
+
+    # Cumulative sum to identify positions after the separator
+    sep_mask_cumsum = tf.cumsum(sep_mask, axis=-1)
+    causal_mask = tf.cast(sep_mask_cumsum > 0, tf.float32)  # Mask for tokens after separator
+
+    # Combine masks (ignore padding and tokens before separator)
+    final_mask = mask * causal_mask
+
+    # Compute accuracy
+    accuracy = tf.cast(y_true == y_pred, tf.float32)
+    accuracy *= final_mask
+
+    # Compute the mean accuracy over non-masked tokens
+    return tf.reduce_sum(accuracy) / tf.reduce_sum(final_mask)
 
 @register_keras_serializable()
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):

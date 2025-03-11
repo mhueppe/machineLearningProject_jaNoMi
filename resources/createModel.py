@@ -4,7 +4,9 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy, distillation_loss
+from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy, \
+    masked_loss_decoder_only,\
+    masked_accuracy_decoder_only, distillation_loss
 from resources.training.transformer.transformer import Transformer
 from resources.training.transformer.transformer_decoder_only import TransformerDecoderOnly
 from resources.training.rnn.rnn import RNN
@@ -29,11 +31,15 @@ def init_model(Model, params):
         epsilon=1e-9 # A small constant for numerical stability
     )
 
+    loss_fn = masked_loss
+    accuracy_fn = masked_accuracy
     if isinstance(Model, str):
         if Model == "Transformer":
             Model = Transformer
         if Model == "TransformerDecoderOnly":
             Model = TransformerDecoderOnly
+            loss_fn = masked_loss_decoder_only
+            accuracy_fn = masked_accuracy_decoder_only
         elif Model == "RNN":
             Model = RNN
         else:
@@ -43,8 +49,8 @@ def init_model(Model, params):
 
     model.compile(
         optimizer=optimizer,
-        loss=masked_loss,
-        metrics=[masked_accuracy]
+        loss=loss_fn,
+        metrics=[accuracy_fn]
     )
 
     return model
