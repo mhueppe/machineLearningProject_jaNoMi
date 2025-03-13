@@ -1,4 +1,4 @@
-# author: Michael Hüppe
+# author: Michael Hï¿½ppe
 # date: 11.11.2024
 # project: resources/decoder.py
 import tensorflow as tf
@@ -38,9 +38,9 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
     # Add residual connection
     self_attention_output = tf.keras.layers.Add()([query, causal_self_attention])
 
-    # Pre-normalization before Cross-Attention
+    # Pre-normalization before Cross-Attention (keep this)
     normalized_self_attention_output = tf.keras.layers.LayerNormalization()(self_attention_output)
-    encoder_output = tf.keras.layers.LayerNormalization()(encoder_output)
+
     cross_attention, cross_attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
         key_dim=embedding_dim,
@@ -48,7 +48,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
         name="CrossAttention"
     )(
         query=normalized_self_attention_output,
-        value=encoder_output,
+        value=encoder_output,  # Use the original encoder output
         key=encoder_output,
         return_attention_scores=True
     )
@@ -58,10 +58,9 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
 
     # Pre-normalization before Feed-Forward
     normalized_cross_attention_output = tf.keras.layers.LayerNormalization()(cross_attention_output)
-    name_ff = name.split("_")[0] + "_feed_forward_" + name.split("_")[-1]
-    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff, cropped=kwargs.get("feed_forward_cropped", True))(normalized_cross_attention_output)
 
-    # Add residual connection
+    # Feed-Forward Network
+    feed_forward = FeedForward(embedding_dim, dropout, name="decoder_feed_forward")(normalized_cross_attention_output)
     output = tf.keras.layers.Add()([cross_attention_output, feed_forward])
 
     model = tf.keras.Model(inputs=[query, encoder_output], outputs=(output, causal_self_attention_scores, cross_attention_scores), name=name)

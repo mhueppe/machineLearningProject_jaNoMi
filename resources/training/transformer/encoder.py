@@ -33,9 +33,8 @@ def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer", **kwar
     attention_output = tf.keras.layers.Add()([query, self_attention])
 
     # Pre-normalization before Feed-Forward
-    normalized_attention_output = tf.keras.layers.LayerNormalization()(attention_output)
     name_ff = name.split("_")[0] + "_feed_forward_" + name.split("_")[-1]
-    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff, cropped=kwargs.get("feed_forward_cropped", True))(normalized_attention_output)
+    feed_forward = FeedForward(embedding_dim, dropout, name=name_ff, cropped=kwargs.get("feed_forward_cropped", True))(attention_output)
 
     # Add residual connection
     output = tf.keras.layers.Add()([attention_output, feed_forward])
