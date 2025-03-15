@@ -1,4 +1,4 @@
-# author: Michael Hüppe
+# author: Michael HÃ¼ppe
 # date: 11.11.2024
 # project: resources/encoder.py
 import tensorflow as tf
@@ -24,7 +24,7 @@ def EncoderLayer(num_heads, embedding_dim, dropout, name="encoder_layer", **kwar
     normalized_query = tf.keras.layers.LayerNormalization()(query)
     self_attention, attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
-        key_dim=embedding_dim,
+        key_dim=embedding_dim//num_heads,
         dropout=dropout,
         name="SelfAttention",
     )(query=normalized_query, value=normalized_query, key=normalized_query, return_attention_scores=True)

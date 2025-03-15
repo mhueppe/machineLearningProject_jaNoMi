@@ -99,9 +99,9 @@ def masked_loss_decoder_only(y_true, logits, sep_token_id=4):
     # Create a mask to ignore tokens before the separator
     mask = tf.cast(y_true != 0, loss.dtype)  # Ignore padding tokens
     sep_mask = tf.cast(y_true == sep_token_id, tf.int32)  # Find separator tokens
-
+    print(y_true, sep_mask)
     # Cumulative sum to identify positions after the separator
-    sep_mask_cumsum = tf.cumsum(sep_mask, axis=-1)
+    sep_mask_cumsum = tf.cumsum(sep_mask, axis=0)
     causal_mask = tf.cast(sep_mask_cumsum > 0, loss.dtype)  # Mask for tokens after separator
 
     # Combine masks (ignore padding and tokens before separator)

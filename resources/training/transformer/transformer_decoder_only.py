@@ -32,7 +32,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
 
     causal_self_attention, causal_self_attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
-        key_dim=embedding_dim,
+        key_dim=head_dim,
         dropout=dropout,
         name="CausalSelfAttention"
     )(
@@ -47,12 +47,12 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
     self_attention_output = tf.keras.layers.Add()([query, causal_self_attention])
 
     # Pre-normalization before Feed-Forward
-    normalized_self_attention_output = tf.keras.layers.LayerNormalization()(self_attention_output)
+    # normalized_self_attention_output = tf.keras.layers.LayerNormalization ()(self_attention_output)
     name_ff = name.split("_")[0] + "_feed_forward_" + name.split("_")[-1]
 
     # Feed-Forward Network (FFN)
     feed_forward = FeedForward(embedding_dim, dropout, name=name_ff, cropped=kwargs.get("feed_forward_cropped", True))(
-        normalized_self_attention_output)
+        self_attention_output)
 
     # Add residual connection
     output = tf.keras.layers.Add()([self_attention_output, feed_forward])
@@ -62,7 +62,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
 
 
 def TransformerDecoderOnly(
-        vocab_size: int = 5000,
+        vocab_size: int = 2000,
         model_max_length: int = 250,
         embedding_dim: int = 64,
         dropout: float = 0.1,

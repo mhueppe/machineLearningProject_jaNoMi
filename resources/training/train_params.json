@@ -14,9 +14,9 @@
     "target_min_length" : 1,
     "target_max_length" : 40,
     "batch_size" : 8,
-    "vocab_size" : 7671,
+    "vocab_size" : 2001,
     "tokenizer": "huggingFace",
-    "tokenizer_vocab_path": "C:\\Users\\mhuep\\Master_Informatik\\Semester_3\\MachineLearning\\arxiv_vocab_8000.json",
+    "tokenizer_vocab_path": "C:\\Users\\mhuep\\Master_Informatik\\Semester_3\\MachineLearning\\arxiv_vocab_2000.json",
     "model_type": "TransformerDecoderOnly",
     "model_params_path": "C:\\Users\\mhuep\\Master_Informatik\\Semester_3\\MachineLearning\\resources\\training\\transformer\\transformer_decoder_only_params.json"
 

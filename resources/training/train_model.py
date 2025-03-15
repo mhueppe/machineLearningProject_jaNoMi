@@ -42,7 +42,6 @@ def train_model(settings: dict, tokenizer: Tokenizer,
             model_class = TransformerDecoderOnly
         elif model_type == "RNN":
             model_class = RNN
-
         else:
             raise KeyError
         pre_trained_models_path = settings.get("pre_trained_weights_path", None)

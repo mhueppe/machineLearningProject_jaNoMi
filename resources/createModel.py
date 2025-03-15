@@ -13,7 +13,7 @@ from resources.training.rnn.rnn import RNN
 # from resources.preprocessing.dataPreprocessing import preprocessing
 
 
-def init_model(Model, params):
+def init_model(Model, params, compile=True):
     """
     Initialize the model
     :param Model: Model class to init
@@ -38,19 +38,23 @@ def init_model(Model, params):
             Model = Transformer
         if Model == "TransformerDecoderOnly":
             Model = TransformerDecoderOnly
-            loss_fn = masked_loss_decoder_only
-            accuracy_fn = masked_accuracy_decoder_only
         elif Model == "RNN":
             Model = RNN
         else:
             raise KeyError
 
+    if Model == TransformerDecoderOnly:
+        print("Use decoder only masked loss")
+        loss_fn = masked_loss_decoder_only
+        accuracy_fn = masked_accuracy_decoder_only
+
     model = Model(**params)
 
-    model.compile(
-        optimizer=optimizer,
-        loss=loss_fn,
-        metrics=[accuracy_fn]
-    )
+    if compile:
+        model.compile(
+            optimizer=optimizer,
+            loss=loss_fn,
+            metrics=[accuracy_fn]
+        )
 
     return model

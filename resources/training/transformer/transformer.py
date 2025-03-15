@@ -1,4 +1,4 @@
-# author: Michael Hüppe
+# author: Michael HÃ¼ppe
 # date: 11.11.2024
 # project: resources/transformer.py
 import tensorflow as tf

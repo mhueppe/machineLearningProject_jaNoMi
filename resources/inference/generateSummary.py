@@ -98,7 +98,7 @@ class GenerateSummary:
         def prettify(seq):
             if self.decoder_only:
                 seq = seq[0].numpy()
-                # seq = seq[np.argwhere(seq == self.token_end)[0][0]+1:]
+                seq = seq[np.argwhere(seq == self.token_title)[0][0]+1:]
                 result = self.tokenizer.prettify(self.tokenizer.detokenize(seq))
             else:
                 result = self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))

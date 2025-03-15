@@ -1,4 +1,4 @@
-# author: Michael H�ppe
+# author: Michael Hï¿½ppe
 # date: 11.11.2024
 # project: resources/decoder.py
 import tensorflow as tf
@@ -24,7 +24,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
     normalized_query = tf.keras.layers.LayerNormalization()(query)
     causal_self_attention, causal_self_attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
-        key_dim=embedding_dim,
+        key_dim=embedding_dim//num_heads,
         dropout=dropout,
         name="CausalSelfAttention"
     )(
@@ -43,7 +43,7 @@ def DecoderLayer(num_heads, embedding_dim, dropout, name="decoder_layer", **kwar
 
     cross_attention, cross_attention_scores = tf.keras.layers.MultiHeadAttention(
         num_heads=num_heads,
-        key_dim=embedding_dim,
+        key_dim=embedding_dim//num_heads,
         dropout=dropout,
         name="CrossAttention"
     )(

@@ -7,7 +7,7 @@ import os
 from typing import List, Callable
 
 from utils.util_readingData import load_data
-from .createModel import init_model, init_tokenizers
+from .createModel import init_model
 from resources.inference.generateSummary import GenerateSummary
 from .preprocessing.tokenizer import TokenizerBertHuggingFace
 from .training.transformer.transformer import Transformer
@@ -34,7 +34,7 @@ class JaNoMiModel:
         # self._kw_model = KeyBERT()
 
         path = r"C:\Users\mhuep\Master_Informatik\Semester_3\MachineLearning\trained_models\Transformer"
-        model_name = "01_29_2025__01_26_19"
+        model_name = "03_13_2025__15_19_56"
         path = os.path.join(path, model_name)
         with open(os.path.join(path, "modelInfo.json")) as f:
             params = json.load(f)["model_parameters"]
