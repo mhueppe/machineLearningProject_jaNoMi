@@ -1,15 +1,13 @@
 # author: Michael Hüppe
 # date: 28.10.2024
 # project: /main_application.py
-from PySide6.QtGui import QIcon
 
 # local
-from gui.interface import Interface
-from resources.model import JaNoMiModel
+import gui
+import resources
 # external
 from PySide6.QtWidgets import QApplication, QMainWindow
-import sys
-from resources.model_types import ModelTypes
+from PySide6.QtGui import QIcon
 
 class MainApplication(QMainWindow):
     """
@@ -19,9 +17,10 @@ class MainApplication(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.inputHandler = JaNoMiModel()
-        self.interface = Interface(cb_inputEnter=self._gui_inputerEnter,
-                                   tokenizer=self.inputHandler._tokenizer)  # Create an instance of Interface
+        self.inputHandler = resources.model.JaNoMiModel()
+        self.interface = gui.interface.Interface(
+            cb_inputEnter=self._gui_inputerEnter,
+            cb_getTokenizer=self.inputHandler.getTokenizer)  # Create an instance of Interface
         self.setCentralWidget(self.interface)  # Set Interface as the main widget
         self.initUI()
         self.setWindowTitle("Headliner")
@@ -64,6 +63,7 @@ stylesheet = """
 
 def main():
     """Main entry point for the application."""
+    import sys
     app = QApplication(sys.argv)
     # app.setStyleSheet(stylesheet)
     # app.setStyleSheet("QWidget { color: black; background: none; }")
@@ -77,4 +77,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # installed_modules = pkgutil.iter_modules()
+    # for module in installed_modules:
+    #     print(module.name)
     main()
+    # packaging command
+    #pyinstaller -p "." --hidden-import gui --hidden-import resources --name Headliner --onefile --windowed --add-data "gui/media/UHH_Universitaet_Hamburg_Logo.png;gui/media" --add-data "vocabs;vocabs" --add-data "trained_models/Transformer/03_13_2025__15_19_56;trained_models/Transformer/03_13_2025__15_19_56" --add-data "trained_models/Transformer/03_13_2025__09_48_03;trained_models/Transformer/03_13_2025__09_48_03" --add-data "trained_models/TransformerDecoderOnly/03_14_2025__18_42_32;trained_models/TransformerDecoderOnly/03_14_2025__18_42_32" .\main.py

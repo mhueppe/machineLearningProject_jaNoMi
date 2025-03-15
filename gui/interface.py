@@ -11,20 +11,12 @@ from resources.evaluation.attention_evaluation import generate_heatmap_text
 from .src.interface import Ui_Form
 
 # external
-from PySide6.QtWidgets import QWidget, QTextBrowser, QVBoxLayout, QListWidgetItem
+from PySide6.QtWidgets import QWidget, QTextBrowser, QVBoxLayout, QListWidgetItem, QMessageBox
 from resources.model_types import ModelTypes
 from resources.preprocessing.dataPreprocessing import preprocessing
+from resources.preprocessing.tokenizer import Tokenizer
 from PySide6.QtWidgets import QApplication, QListWidget, QListWidgetItem, QLabel, QStyledItemDelegate
 from PySide6.QtCore import Qt
-
-class HtmlDelegate(QStyledItemDelegate):
-    def paint(self, painter, option, index):
-        text = index.data(Qt.DisplayRole)  # Get the item text
-        label = QLabel()
-        label.setTextFormat(Qt.RichText)  # Enable HTML rendering
-        label.setText(text)
-        label.setFixedWidth(option.rect.width())  # Ensure proper text wrapping
-        label.render(painter, option.rect.topLeft())
 
 
 class Worker(QtCore.QThread):
@@ -33,23 +25,28 @@ class Worker(QtCore.QThread):
     def __init__(self, work_func: Callable,
                  user_input: str,
                  model_type: ModelTypes,
+                 beam_width: int,
                  num_results: int,
                  temperature: float,
+                 no_reps: bool,
                  gui_cb: Callable):
         super().__init__()
         self._work_func = work_func
         self._user_input = user_input
         self._model_type = model_type
+        self._beam_width = beam_width
         self._num_results = num_results
         self._temperature = temperature
+        self._no_reps = no_reps
         self._gui_cb = gui_cb
 
     def run(self):
-        print("worker started!")
         output = self._work_func(user_input=self._user_input,
                                  model_type=self._model_type,
+                                 beam_width=self._beam_width,
                                  num_results=self._num_results,
                                  temperature=self._temperature,
+                                 no_reps=self._no_reps,
                                  gui_cb=self._gui_cb)
         self.output_ready.emit(output)
 
@@ -58,52 +55,21 @@ class Worker(QtCore.QThread):
             self.terminate()
 
 
-# TODO: is this class needed or is there a better way?
-class ClickableTextBrowser(QWidget):
-    clicked = QtCore.Signal(str)  # Custom signal to emit text content when clicked
-
-    def __init__(self, html_content):
-        super().__init__()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create a QTextBrowser for full HTML support
-        self.text_browser = QTextBrowser()
-        self.text_browser.setHtml(html_content)
-        self.text_browser.setFixedHeight(50)  # Adjust height as needed
-        self.text_browser.setStyleSheet("border: none;")  # Remove border
-        self.text_browser.setOpenExternalLinks(False)  # Disable external links
-
-        # Detect mouse press events on the QTextBrowser
-        self.text_browser.viewport().installEventFilter(self)
-
-        layout.addWidget(self.text_browser)
-        self.setLayout(layout)
-
-        self.html_content = html_content
-
-    def eventFilter(self, source, event):
-        if event.type() == event.MouseButtonPress:
-            # Emit signal with the text content when clicked
-            self.clicked.emit(self.html_content)
-            # TODO: highlight selection
-            # TODO: show related attention
-            return True
-        return super().eventFilter(source, event)
-
-
 class Interface(QWidget, Ui_Form):
     """
     Implementation of a simple GUI interface to input text and receive some kind of output.
     """
-    output_send = QtCore.Signal(list) # TODO: is this currently used?
+    output_send = QtCore.Signal(list)  # TODO: is this currently used?
 
-    def __init__(self, cb_inputEnter: Callable = lambda userInput: None, tokenizer = None):
+    def __init__(self,
+                 cb_inputEnter: Callable = lambda userInput, model: None,
+                 cb_getTokenizer: Callable = lambda: None,
+                 ):
         super().__init__()
         self._cb_inputEnter: Callable[[str, ModelTypes], None] = cb_inputEnter
+        self._cb_getTokenizer: Callable[[ModelTypes], Tokenizer] = cb_getTokenizer
         self.setup_ui(self)
         self.setup_connections()
-        self.tokenizer = tokenizer
         self.output = []
 
     def setup_ui(self, Form) -> None:
@@ -115,6 +81,20 @@ class Interface(QWidget, Ui_Form):
         # Initialize the form with the interface layout
         super().setupUi(Form)
         self.comboBox_modelType.addItems(ModelTypes._member_names_)
+        self.textBrowser_abstract.setText(
+            "The dominant sequence transduction models are based on complex recurrent or convolutional neural "
+            "networks in an encoder-decoder configuration. The best performing models also connect the encoder and "
+            "decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, "
+            "based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments "
+            "on two machine translation tasks show these models to be superior in quality while being more "
+            "parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT "
+            "2014 English-to-German translation task, improving over the existing best results, including ensembles "
+            "by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new "
+            "single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, "
+            "a small fraction of the training costs of the best models from the literature. We show that the "
+            "Transformer generalizes well to other tasks by applying it successfully to English constituency parsing "
+            "both with large and limited training data."
+        )
         # self.listWidget_titles.setItemDelegate(HtmlDelegate(self.listWidget_titles))  # Set the custom delegate
 
     def setup_connections(self) -> None:
@@ -135,97 +115,108 @@ class Interface(QWidget, Ui_Form):
         )
 
     def _listWidget_titles_selectionChanged(self):
+        """
+        Called when a different title has been selected
+        :return:
+        """
         selectedTitle_idx = self.listWidget_titles.currentRow()
         if selectedTitle_idx == -1 or selectedTitle_idx < len(self.output):
-            self.displayAbstractAttention(self.output[selectedTitle_idx])
+            self.displayAttention(self.output[selectedTitle_idx])
 
     def _pushButton_stop_clicked(self):
+        """
+        Reset all the views and stop the worker if necessary.
+        :return:
+        """
         try:
-            self.worker.stop() # TODO: implement a more peaceful way
-        except Exception: print('Worker cannot be stopped. probably because it doesnt exist')
+            self.worker.stop()
+        except Exception:
+            print('Worker cannot be stopped. probably because it doesnt exist')
         self.textBrowser_abstract.clear()
         self.listWidget_titles.clear()
-
+        self.textBrowser_title.clear()
 
     def _pushButton_enter_clicked(self) -> None:
         """
         Send the current input to the input handler
         :return:
         """
-        print("butten clicked!")
+        userInput = self.textBrowser_abstract.toPlainText()
+        if len(userInput) == 0:
+            # Create a message box
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)  # Set the icon to Warning
+            msg_box.setWindowTitle("Warning")  # Set the title
+            msg_box.setText("The abstract is empty. Please input one!")  # Set the main message
+            msg_box.setStandardButtons(QMessageBox.Ok)  # Add an "OK" button
+            # Show the message box
+            msg_box.exec()
+            return
+
         model_type = ModelTypes[self.comboBox_modelType.currentText()]
-        # TODO: kontrollelemente ausgrauen/ausblenden, wenn nicht Headliner asugewählt ist?
-        #self.spinBox_temperature.setDisabled()
-        self.progressBar.setValue(0)
         self.listWidget_titles.clear()
-        if model_type == ModelTypes.Headliner:
-            number_of_titles = self.spinBox_number_titles.value()
-            temperature = self.spinBox_temperature.value() / 200
-            self.listWidget_titles.addItems([""] * number_of_titles)
-            #for _ in range(number_of_titles):
-            #    widget_item = QListWidgetItem(self.listWidget_titles)  # Create a QListWidgetItem
-            #    clickable_widget = ClickableTextBrowser("")  # Create the custom widget
-            #    self.listWidget_titles.addItem(widget_item)  # Add the item to the list
-            #    self.listWidget_titles.setItemWidget(widget_item, clickable_widget)  # Set the custom widget for the item
+        number_of_titles = self.spinBox_number_titles.value()
+        beam_width = self.spinBox_beam_width.value()
+        no_reps = self.checkBox_no_reps.isChecked()
+        temperature = self.spinBox_temperature.value() / 100
 
-            # TODO: toPlainText könnte auch woanders hin
-            self.worker = Worker(self._cb_inputEnter, self.textBrowser_abstract.toPlainText(), model_type, number_of_titles, temperature, self.handle_stream)
-            self.worker.output_ready.connect(self._on_worker_done) # TODO: refactor?
-            self.worker.start()
-        else:
-            self.listWidget_titles.addItem()
-            self._cb_inputEnter(self.textEdit_abstract.toPlainText(), model_type)
-
+        self.progressBar.setRange(0, 0)  # Indeterminate state (busy mode)
+        self.listWidget_titles.addItems([""] * number_of_titles)
+        self.worker = Worker(self._cb_inputEnter,
+                             userInput,
+                             model_type, beam_width, number_of_titles,
+                             temperature, no_reps,
+                             self.handle_stream)
+        self.worker.output_ready.connect(self._on_worker_done)
+        self.worker.start()
 
     def _on_worker_done(self, output: list):
-        print("Worker done!")
+        """
+        Called when all the predictions have been made with the final
+        best predicted sequences.
+        :param output: Output containing the generated sequence as well as the attention values.
+        :return:
+        """
         self.output = output
-        # for item in output:
-        #     titles, scores, attention_scores = item
-        # self.listWidget_titles.clear()
-        # for o in output:
-        #     prediction, score, attention = output
+        self.displayAttention(output[self.listWidget_titles.currentRow()])
+        self.progressBar.setRange(0, 1)  # Indeterminate state (busy mode)
 
-        self.displayAbstractAttention(output[self.listWidget_titles.currentRow()])
-
-    def displayAbstractAttention(self, output):
+    def displayAttention(self, output):
+        """
+        Display the Attention for the title and the abstract
+        :param output: Output containing the generated sequence as well as the attention values.
+        :return:
+        """
         prediction, score, attention = output
         # attention type, layer, head
-        tokens_y = "[START] " + self.tokenizer.detokenize(
-            self.tokenizer.tokenize(preprocessing(prediction)))
-        tokens_x = "[START] " + self.tokenizer.detokenize(
-            self.tokenizer.tokenize(preprocessing(self.textBrowser_abstract.toPlainText())))
+        tokenizer = self._cb_getTokenizer(ModelTypes[self.comboBox_modelType.currentText()])
+        tokens_y = "[START] " + tokenizer.detokenize(
+            tokenizer.tokenize(preprocessing(prediction)))
+        abstract = self.textBrowser_abstract.toPlainText()
+        tokens_x = "[START] " + tokenizer.detokenize(
+            tokenizer.tokenize(preprocessing(abstract)))
         try:
+            x_length = len(tokens_x.split())
             html_content = generate_heatmap_text(tokens_x,
                                                  np.mean(np.mean(attention[2]["decoder_layer_1"][0], axis=0), axis=0)[
-                                                 :len(tokens_x.split())], "Greens", combine_tokens=True)
+                                                 :x_length], "Greens", combine_tokens=True)
             self.textBrowser_abstract.setHtml(html_content)
-        except Exception:
+            html_content = generate_heatmap_text(tokens_y.title(),
+                                                 np.mean(np.mean(attention[2]["decoder_layer_1"][0], axis=0), axis=1)[
+                                                 :len(tokens_y.split())], "Greens", combine_tokens=True)
+            self.textBrowser_title.setHtml(html_content)
+        except Exception as e:
+            print(e)
             pass
 
-        # attention = '<span style="background-color: #79c67a; color: #000000; padding: 0 4px; border-radius: 4px;">attention</span> <span style="background-color: #62bb6d; color: #000000; padding: 0 4px; border-radius: 4px;">based</span> <span style="background-color: #00441b; color: #FFFFFF; padding: 0 4px; border-radius: 4px;">recurrent</span> <span style="background-color: #005020; color: #FFFFFF; padding: 0 4px; border-radius: 4px;">neural</span> <span style="background-color: #70c274; color: #000000; padding: 0 4px; border-radius: 4px;">network</span> <span style="background-color: #f7fcf5; color: #000000; padding: 0 4px; border-radius: 4px;">models</span>'
-
-    def handle_exploratory_stream(self, row_id: int, title: str, progress: int):
-        print(progress, row_id, title)
-        # TODO: show as html so there will be a smooth transition
-        item = self.listWidget_titles.item(row_id)
-        if item:
-            item.setText(title)
-            #html_content = f"<p>{title}</p>"
-            #item.text_browser.setHtml(html_content)
-        else: print("handle_stream: no list item!")
-        # TODO: progressBar currently crashes programm eventually
-        #self.progressBar.setValue(progress)
-
-
-    # TODO: wenn ein titel bereits angezeigt wird, dann nicht die position verändern?
-    #  oder lieber wie bisher immer nach score sortieren lassen?
-    def handle_stream(self, titles: list, progress: int):
+    def handle_stream(self, titles: list):
+        """
+        Append all the generated titles to the view
+        :param titles: Titles to add to the view
+        :return:
+        """
         try:
-            print(progress, titles[0])
             self.listWidget_titles.clear()
             self.listWidget_titles.addItems(titles)
         except Exception as e:
-                print(e)
-        # TODO: progressBar currently crashes programm eventually
-        #self.progressBar.setValue(progress)
+            print(e)

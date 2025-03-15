@@ -4,9 +4,9 @@
 
 from enum import Enum
 
-
 class ModelTypes(Enum):
-    Headliner = 3
-    TfIdf = 0
-    Rake = 1
-    KeyBert = 2
+    Medi = 0
+    Maxi = 1
+    DecoderOnly = 2
+
+

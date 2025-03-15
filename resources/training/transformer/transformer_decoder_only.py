@@ -85,7 +85,7 @@ def TransformerDecoderOnly(
     """
     model_max_length = kwargs["context_max_length"] + kwargs["target_max_length"] + 1
     # Define input
-    decoder_input = tf.keras.Input(shape=(None,), name="decoder_input")
+    decoder_input = tf.keras.Input(shape=(None,))
 
     # Define embedding layer
     embedding_layer = tf.keras.layers.Embedding(

@@ -1,6 +1,8 @@
 # author: Michael H�ppe
 # date: 11.11.2024
 # project: resources/inference.py
+from typing import Callable
+
 import numpy as np
 # Class for generating summaries
 import tensorflow as tf
@@ -38,7 +40,7 @@ class GenerateSummary:
 
     def generate_next_token_probs(self, encoder_input, output, temperature):
         if self.decoder_only:
-            output = self.model([tf.convert_to_tensor(output, dtype=tf.int32)])
+            output = self.model(tf.convert_to_tensor(output, dtype=tf.int32))
         else:
             output = self.model([tf.convert_to_tensor(encoder_input, dtype=tf.int32), output])
         if isinstance(output, tuple) or isinstance(output, list):
@@ -51,7 +53,19 @@ class GenerateSummary:
         probs = tf.nn.softmax(logits / temperature, axis=-1)
         return probs, attention_scores
 
-    def beam_search(self, text, beam_width=5, temperature=1.0, num_results=3, return_attention_scores: bool = False):
+    def prettify(self, seq):
+        if self.decoder_only:
+            seq = seq[0].numpy()
+            seq = seq[np.argwhere(seq == self.token_title)[0][0] + 1:]
+            result = self.tokenizer.prettify(self.tokenizer.detokenize(seq))
+        else:
+            result = self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))
+        return result
+
+    def beam_search(self, text,
+                    beam_width=5, temperature=1.0, num_results=3,
+                    no_reps: bool = False,
+                    return_attention_scores: bool = False, gui_cb: Callable[[list], None] = lambda output: None):
         encoder_input = self.tokenizer.tokenize(text, frame=False, max_length=-1 if self.decoder_only else self.context_max_length,)
         if self.decoder_only:
             encoder_input[0] = [self.token_start] + encoder_input[0]
@@ -63,13 +77,27 @@ class GenerateSummary:
             # Initialize beams with the start token and zero score
             beams = [(start_token, 0)]  # List of tuples: (sequence, score)
         completed_beams = []
-
+        all_beams = []
+        best_beams = []
+        early_stopping = 0
+        early_stopping_thresh = 3
         for _ in range(self.target_max_length - 1):
             new_beams = []
             for seq, score in beams:
                 # Generate probabilities for the next token
                 probs, attention_scores = self.generate_next_token_probs(encoder_input, seq, temperature)
-                top_probs, top_tokens = tf.math.top_k(probs, k=beam_width)
+
+                if no_reps:
+                    probs = probs.numpy()[0]
+                    tokens = list(seq[0])
+                    used_tokens = tokens[tokens.index(self.tokenizer.TITLE)+1:] if self.decoder_only else tokens
+                    for t in used_tokens:
+                        probs[t] = 0
+                    probs = probs / np.sum(probs)
+                    # Select the top tokens from the masked probabilities
+                    top_probs, top_tokens = tf.math.top_k([probs], k=beam_width)
+                else:
+                    top_probs, top_tokens = tf.math.top_k(probs, k=beam_width)
 
                 # Extend each beam with the top tokens
                 for i in range(beam_width):
@@ -85,7 +113,17 @@ class GenerateSummary:
 
             # Sort new beams by score and keep the top `beam_width`
             beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_width]
-
+            all_beams = sorted(new_beams+completed_beams, key=lambda x: x[1], reverse=True)[:num_results]
+            gui_cb([self.prettify(beam[0]) for beam in all_beams])
+            if len(completed_beams) >= num_results:
+                try:
+                    if all_beams == best_beams:
+                        early_stopping += 1
+                except ValueError:
+                    continue
+                if early_stopping > early_stopping_thresh:
+                    break
+                best_beams = all_beams
             # Break if all beams are completed
             if not new_beams:
                 break
@@ -95,30 +133,27 @@ class GenerateSummary:
 
         # Sort all completed beams by score and return the best `num_results`
         completed_beams = sorted(completed_beams, key=lambda x: x[1], reverse=True)[:num_results]
-        def prettify(seq):
-            if self.decoder_only:
-                seq = seq[0].numpy()
-                seq = seq[np.argwhere(seq == self.token_title)[0][0]+1:]
-                result = self.tokenizer.prettify(self.tokenizer.detokenize(seq))
-            else:
-                result = self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy()))
-            return result
 
         if return_attention_scores:
-            return [(self.tokenizer.prettify(self.tokenizer.detokenize(seq[0].numpy())), score, attention_scores)
+            return [(self.prettify(seq), score, attention_scores)
                     for seq, score, attention_scores in completed_beams]
         else:
-            return [prettify(seq)
+            return [self.prettify(seq)
                     for seq, score in completed_beams]
 
-    def summarize(self, text: str, beam_width: int = 5, temperature: float = 1.1, num_results=None,
-                  return_attention_scores: bool = False) -> list:
+    def summarize(self, text: str, beam_width: int = 5,
+                  temperature: float = 1.1, num_results=None,
+                  no_reps: bool = False,
+                  return_attention_scores: bool = False,
+                  gui_cb: Callable[[list], None] = lambda outputs: None) -> list:
         num_results = num_results or beam_width
         return self.beam_search(preprocessing(text),
                                 beam_width=beam_width,
                                 temperature=temperature,
                                 num_results=num_results,
-                                return_attention_scores=return_attention_scores)
+                                no_reps=no_reps,
+                                return_attention_scores=return_attention_scores,
+                                gui_cb=gui_cb)
 
 
 # Function to generate summaries and display them in HTML format

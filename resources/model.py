@@ -4,6 +4,7 @@
 # built-in
 import json
 import os
+from pathlib import Path
 from typing import List, Callable
 
 from utils.util_readingData import load_data
@@ -11,14 +12,12 @@ from .createModel import init_model
 from resources.inference.generateSummary import GenerateSummary
 from .preprocessing.tokenizer import TokenizerBertHuggingFace
 from .training.transformer.transformer import Transformer
+from .training.transformer.transformer_decoder_only import TransformerDecoderOnly
 # local
 from .model_types import ModelTypes
 
 # external
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-import nltk
-# from keybert import KeyBERT
 
 
 class JaNoMiModel:
@@ -28,23 +27,48 @@ class JaNoMiModel:
 
     def __init__(self):
         # Initialize TF-IDF Vectorizer
-        nltk.download('stopwords')
-        nltk.download('punkt_tab')
-        self._vectorizer = TfidfVectorizer(max_features=10, stop_words='english')  # Adjust max_features as needed
-        # self._kw_model = KeyBERT()
+        path = r"trained_models\Transformer"
+        self.medi = self._load_model(os.path.join(path, "03_13_2025__15_19_56"))
+        self.medi.model.summary()
+        self.maxi = self._load_model(os.path.join(path, "03_13_2025__09_48_03"))
+        path = r"trained_models\TransformerDecoderOnly"
+        self.decoder_only = self._load_model(os.path.join(path, "03_14_2025__18_42_32"))
+        self._models = {
+            ModelTypes.Medi: self.medi,
+            ModelTypes.Maxi: self.maxi,
+            ModelTypes.DecoderOnly: self.decoder_only,
+        }
 
-        path = r"C:\Users\mhuep\Master_Informatik\Semester_3\MachineLearning\trained_models\Transformer"
-        model_name = "03_13_2025__15_19_56"
-        path = os.path.join(path, model_name)
+    def _load_model(self, path: str):
+        """
+        Load model using the specified path
+        :param path:
+        :return:
+        """
         with open(os.path.join(path, "modelInfo.json")) as f:
             params = json.load(f)["model_parameters"]
         params["return_attention_scores"] = True
-        #titles, abstracts = load_data('Arxiv', params)
-        #self._context_tokenizer, self._target_tokenizer = init_tokenizers(titles, abstracts, params)
-        self._tokenizer = TokenizerBertHuggingFace('arxiv_vocab_8000.json')
-        self._headliner = init_model(Transformer, params)
-        self._headliner.load_weights(os.path.join(path,"modelCheckpoint.weights.h5"))
+        vocab_path = params["tokenizer_vocab_path"]
+        if not os.path.isfile(vocab_path):
+            vocab_path = os.path.join(".", "vocabs", Path(params["tokenizer_vocab_path"]).name)
+            if not os.path.isfile(vocab_path):
+                raise FileNotFoundError("Please make sure that the vocab path the model was trained with is available")
+        tokenizer = TokenizerBertHuggingFace(vocab_path)
+        decoder_only = params["model_type"] == "TransformerDecoderOnly"
+        model = init_model(TransformerDecoderOnly if decoder_only else Transformer, params)
+        model.load_weights(os.path.join(path, "modelCheckpoint.weights.h5"))
+        return GenerateSummary(model, tokenizer,
+                               target_max_length=params["target_max_length"],
+                               context_max_length=params["context_max_length"],
+                               decoder_only=decoder_only)
 
+    def getTokenizer(self, model_type):
+        """
+        Return the tokenizer for the specified model
+        :param model_type:
+        :return:
+        """
+        return self._models[model_type].tokenizer
 
     @staticmethod
     def encodeInput(userInput: str) -> List[str]:
@@ -64,68 +88,26 @@ class JaNoMiModel:
         encodedInput = self.encodeInput(userInput)
         return np.array([1 / len(encodedInput)] * len(encodedInput))  # Uniform distribution for each word
 
-
-    # number_of_titles: int = None, temperature: int = None, gui_cb: Callable[] = None
-    def generateOutput(self, user_input: str, model_type: ModelTypes = ModelTypes.TfIdf, **kwargs) -> list[str]:
+    def generateOutput(self,
+                       user_input: str,
+                       model_type: ModelTypes = ModelTypes.Medi,
+                       beam_width=5, num_results=5, temperature=1,
+                       no_reps: bool = False,
+                       gui_cb: Callable = lambda output: None, **kwargs) -> list[str]:
         """
         Generate output based on the encoded Input
-        :param userInput: Input from the user
-        :param modelType: Model to use for generating output
+        :param gui_cb:
+        :param user_input:
+        :param model_type:
+        :param beam_width: How many beams to follow
+        :param num_results: How many results should be considered for the beams
+        :param temperature: Randomness introduced to the prediction of the beams
         :return:
         """
-        if model_type == ModelTypes.Headliner:
-            return self.generateOutput_headliner(user_input, **kwargs)
-        elif model_type == ModelTypes.TfIdf:
-            output = self.generateOutput_tfidf(user_input)
-        elif model_type == ModelTypes.Rake:
-            output = self.generateOutput_rake(user_input)
-        else:
-            output = self.generateOutput_keyBert(user_input)
-
-        return [", ".join(output)]
-
-    def generateOutput_tfidf(self, userInput: str):
-        """
-        Generate output based on tfidf
-        :param userInput:
-        :return:
-        """
-        tfidf_matrix = self._vectorizer.fit_transform([userInput])
-
-        # Get feature names (words) and their corresponding scores
-        feature_names = self._vectorizer.get_feature_names_out()
-        tfidf_scores = tfidf_matrix.toarray()[0]  # Only for the first abstract if analyzing individually
-
-        # Get words with highest TF-IDF scores
-        important_words = sorted(zip(feature_names, tfidf_scores), key=lambda x: x[1], reverse=True)
-        return [word for word, score in important_words]  # List of most important words
-
-    def generateOutput_rake(self, userInput: str):
-        """
-        Generate output based on rake
-        :param userInput:
-        :return:
-        """
-        return userInput
-    def generateOutput_keyBert(self, userInput: str):
-        """
-        Extract keywords based on key Bert
-        :param userInput: Input of the user
-        :return:
-        """
-        return userInput
-
-    # TODO: adjust (default) params vs kwargs
-    def generateOutput_headliner(self, user_input: str, num_results: int = 1, temperature: float = 1, gui_cb: Callable = None):
-        """
-        predict output based on our own trained model
-        :param user_input: abstract put in by the user
-        :return: title predicted by the model
-        """
-        with open(os.path.join("resources","headliner-params.json")) as f:
-            params = json.load(f)
-        summary = GenerateSummary(self._headliner,
-                                  self._tokenizer,
-                                  params["target_max_length"],
-                                  params["context_max_length"])
-        return summary.summarize(user_input, 5, num_results=num_results, temperature=temperature, return_attention_scores=True, gui_cb=gui_cb)
+        return self._models[model_type].summarize(user_input,
+                                                  beam_width=beam_width,
+                                                  num_results=num_results,
+                                                  temperature=temperature,
+                                                  no_reps=no_reps,
+                                                  return_attention_scores=True,
+                                                  gui_cb=gui_cb)

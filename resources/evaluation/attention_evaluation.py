@@ -54,8 +54,8 @@ def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: boo
     """
     import matplotlib.cm as cm
     import matplotlib.colors as mcolors
-    start_token = "[START]"
-    if start_token in sentence:
+    start_token = "[START]".lower()
+    if start_token in sentence.lower():
         sentence = sentence[len(start_token):]
         values = values[1:]
     tokens = sentence.split()

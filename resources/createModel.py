@@ -44,7 +44,6 @@ def init_model(Model, params, compile=True):
             raise KeyError
 
     if Model == TransformerDecoderOnly:
-        print("Use decoder only masked loss")
         loss_fn = masked_loss_decoder_only
         accuracy_fn = masked_accuracy_decoder_only
 
