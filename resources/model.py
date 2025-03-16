@@ -27,11 +27,11 @@ class JaNoMiModel:
 
     def __init__(self):
         # Initialize TF-IDF Vectorizer
-        path = r"trained_models\Transformer"
+        path = r".\trained_models\Transformer"
         self.medi = self._load_model(os.path.join(path, "03_13_2025__15_19_56"))
         self.medi.model.summary()
         self.maxi = self._load_model(os.path.join(path, "03_13_2025__09_48_03"))
-        path = r"trained_models\TransformerDecoderOnly"
+        path = r".\trained_models\TransformerDecoderOnly"
         self.decoder_only = self._load_model(os.path.join(path, "03_14_2025__18_42_32"))
         self._models = {
             ModelTypes.Medi: self.medi,

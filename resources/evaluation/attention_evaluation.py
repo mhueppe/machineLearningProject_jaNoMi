@@ -40,7 +40,7 @@ def plot_attention_heads(attention_scores, layer_name, representation):
 
 from IPython.display import display, HTML
 
-def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: bool = True):
+def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: bool = True, title: bool = False):
     """
     Generate a heat-mapped text visualization for tokenized sentences.
 
@@ -85,6 +85,7 @@ def generate_heatmap_text(sentence, values, colormap='Reds', combine_tokens: boo
                     r, g, b = rgba[:3]
                     brightness = (0.299 * r + 0.587 * g + 0.114 * b)
                     text_color = '#000000' if brightness > 0.5 else '#FFFFFF'
+                    current_word = current_word.capitalize() if title else current_word
                     styled_text.append(
                         f'<span style="background-color: {color}; color: {text_color}; padding: 0 4px; border-radius: 4px;">{current_word}</span>'
                     )

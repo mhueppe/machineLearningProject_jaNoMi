@@ -201,9 +201,9 @@ class Interface(QWidget, Ui_Form):
                                                  np.mean(np.mean(attention[2]["decoder_layer_1"][0], axis=0), axis=0)[
                                                  :x_length], "Greens", combine_tokens=True)
             self.textBrowser_abstract.setHtml(html_content)
-            html_content = generate_heatmap_text(tokens_y.title(),
+            html_content = generate_heatmap_text(tokens_y,
                                                  np.mean(np.mean(attention[2]["decoder_layer_1"][0], axis=0), axis=1)[
-                                                 :len(tokens_y.split())], "Greens", combine_tokens=True)
+                                                 :len(tokens_y.split())], "Greens", combine_tokens=True, title=True)
             self.textBrowser_title.setHtml(html_content)
         except Exception as e:
             print(e)
