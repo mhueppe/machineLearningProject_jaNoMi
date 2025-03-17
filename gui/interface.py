@@ -20,6 +20,9 @@ from PySide6.QtCore import Qt
 
 
 class Worker(QtCore.QThread):
+    """
+    Concurrent worker thread which runs the title generation
+    """
     output_ready = QtCore.Signal(list)
 
     def __init__(self, work_func: Callable,
@@ -59,8 +62,6 @@ class Interface(QWidget, Ui_Form):
     """
     Implementation of a simple GUI interface to input text and receive some kind of output.
     """
-    output_send = QtCore.Signal(list)  # TODO: is this currently used?
-
     def __init__(self,
                  cb_inputEnter: Callable = lambda userInput, model: None,
                  cb_getTokenizer: Callable = lambda: None,
@@ -95,7 +96,6 @@ class Interface(QWidget, Ui_Form):
             "Transformer generalizes well to other tasks by applying it successfully to English constituency parsing "
             "both with large and limited training data."
         )
-        # self.listWidget_titles.setItemDelegate(HtmlDelegate(self.listWidget_titles))  # Set the custom delegate
 
     def setup_connections(self) -> None:
         """

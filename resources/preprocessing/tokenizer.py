@@ -3,7 +3,6 @@
 # project: resources/inference.py
 import logging
 import os.path
-from collections import Counter
 from typing import Union, List, Callable
 import tensorflow as tf
 import re

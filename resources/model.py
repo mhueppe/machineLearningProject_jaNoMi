@@ -41,7 +41,7 @@ class JaNoMiModel:
     def _load_model(self, path: str):
         """
         Load model using the specified path
-        :param path:
+        :param path: Path to the model directory
         :return:
         """
         with open(os.path.join(path, "modelInfo.json")) as f:
@@ -64,7 +64,7 @@ class JaNoMiModel:
     def getTokenizer(self, model_type):
         """
         Return the tokenizer for the specified model
-        :param model_type:
+        :param model_type: Which model to load
         :return:
         """
         return self._models[model_type].tokenizer
@@ -73,7 +73,7 @@ class JaNoMiModel:
     def encodeInput(userInput: str) -> List[str]:
         """
         Handles the user Input
-        :param userInput:
+        :param userInput: Input given by the user
         :return:
         """
         return userInput.split()
@@ -95,13 +95,13 @@ class JaNoMiModel:
                        gui_cb: Callable = lambda output: None, **kwargs) -> list[str]:
         """
         Generate output based on the encoded Input
-        :param gui_cb:
-        :param user_input:
-        :param model_type:
+        :param gui_cb: Callback to call everytime a new prediction has been made
+        :param user_input: Input given by the user
+        :param model_type: Which model to use
         :param beam_width: How many beams to follow
         :param num_results: How many results should be considered for the beams
         :param temperature: Randomness introduced to the prediction of the beams
-        :return:
+        :return: List of predictions
         """
         return self._models[model_type].summarize(user_input,
                                                   beam_width=beam_width,
