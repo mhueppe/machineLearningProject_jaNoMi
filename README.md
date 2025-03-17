@@ -1,46 +1,71 @@
-# Machine Learning Project WS24/25 - Group JaNoMi
+# Headliner
 
-This is a public repository to manage the Machine Learning Project of Jannis, Michael and Noah for WS 2024/25.
+Headliner is a GUI-based application that generates titles for scientific papers based on their abstracts using pre-trained language models. The application supports different model architectures and allows users to experiment with various decoding parameters to influence title generation.
 
-## Getting Started
+## Installation and Setup
 
-To start the application, follow these steps:
+To run the application, install the required dependencies:
 
-1. **Create a new conda environment**:
-   ```sh
-   conda create --name myenv python=3.10
-   conda activate myenv
+```bash
+pip install -r requirements.txt
+```
 
-2. **Install the necessary requirements**:
-     ```sh
-    pip install -r requirements.txt
+Then, start the GUI using:
 
-3. **Then start the main.py to view the current gui application**: 
-     ```sh
-    python main.py
+```bash
+python main.py
+```
 
-## Project Sketch: HEADLINER - A Scientific Title Generator
-HEADLINER is a machine learning project aimed at developing a scientific title generator. The goal is to train a language model, specifically a transformer, from scratch using a dataset of abstract-title pairings. This model will then be capable of generating fitting titles for any given abstract. Additionally, it aims to be very data and resource efficient.
-### Objectives
+## Directory Structure
 
-1. **Data Collection**: Gather a comprehensive dataset of scientific abstracts and their corresponding titles. 
-    - For now we will start out with the [ACL Title and Abstract Dataset](https://paperswithcode.com/dataset/acl-title-and-abstract-dataset).
-    - We are also looking at a dataset of [ArXiv-Papers](https://huggingface.co/datasets/CShorten/ML-ArXiv-Papers)
-2. **Model Training**: Train a transformer-based language model on the collected dataset.
-3. **Title Generation**: Provide the user with an interface to input abstracts and generate appropriate titles using the trained model.
-4. **Evaluation**: Implement evaluation metrics to assess the quality and relevance of the generated titles.
+- `gui/` - Contains the GUI code for the application.
+- `resources/training/` - Code for model training.
+- `resources/dataAnalysis/` - Code for data analysis.
+- `resources/evaluation/` - Code for model evaluation.
+- `resources/inference/` - Code for inference and prediction.
+- `resources/preprocessing/` - Code for preprocessing data.
+- `resources/utils/` - Utility functions for the application.
+- `data/` - Directory for datasets. If using custom models, place the arXiv dataset here.
 
-### Components
+## Using Custom Models
 
-- **Data Analysis**: Scripts and notebooks for data preprocessing and analysis.
-- **Model Training**: Code for training the transformer model.
-- **GUI**: A graphical user interface for users to input abstracts and receive generated titles.
-- **Evaluation**: Tools and scripts for evaluating the model's performance.
+To train and use a custom model, add the arXiv dataset to the `data/` subdirectory and modify the training scripts accordingly.
 
-### Technologies
+## GUI Components
 
-- **Python**: The primary programming language for the project.
-- **TensorFlow**: We will be using TensorFlow for training the model.
-- **PySide2**: For developing the GUI.
-- **Scikit-learn**: For data preprocessing and evaluation metrics.
-- **pytest**: For unit testing.
+### Output
+
+- Displays the live view of the beam search.
+- Shows the top `n` beams.
+- Often, the best titles are found early, but the model continues exploring the search space.
+- Final attention visualizations may take some time to display.
+
+### Title
+
+- Displays the currently selected generated title.
+- Shows the sum of all cross-attention heads in the last decoder layer to illustrate how the model attends to different parts of the input.
+
+### Abstract
+
+- Input field where users can enter their abstract.
+- After title generation, it displays the sum of all cross-attention heads.
+- Users can analyze attention scores by selecting different titles in the output section.
+
+### Decoding Parameters
+
+- **Beam Width**: Defines how many candidate sequences the model considers at each step.
+- **Temperature (Creativity)**: Controls randomness in title generation. Higher values lead to more diverse results.
+- **No Reps Toggle**: Prevents duplicate words in generated sequences.
+- **Model Selection**: Choose between three pre-trained models:
+  - **Decoder-only**
+  - **Medi**
+  - **Maxi**
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE` for details.
+
+---
+
+For any questions or contributions, feel free to open an issue or submit a pull request!
+
