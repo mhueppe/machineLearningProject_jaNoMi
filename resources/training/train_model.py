@@ -7,17 +7,15 @@ import os
 import sys
 from io import StringIO
 from typing import Tuple, List
-import pandas as pd
 from resources.createModel import init_model
 from resources.training.train_logging import SummarizationCallback, WandbLoggingCallback
 from resources.inference.generateSummary import GenerateSummary
 from resources.preprocessing.dataPreprocessing import tokenizeData, preprocessing
 from resources.preprocessing.tokenizer import TokenizerBert, TokenizerWord, Tokenizer, TokenizerBertHuggingFace
-from resources.training.rnn.rnn import RNN
 from resources.training.transformer.transformer import Transformer
 from resources.training.transformer.transformer_decoder_only import TransformerDecoderOnly
 from utils.util_readingData import filter_byLength, split_datasets, readingDataArxiv, dataGenerator
-
+import csv
 # external
 import numpy as np
 import tensorflow as tf
@@ -163,8 +161,63 @@ def train_model(settings: dict, tokenizer: Tokenizer,
     finally:
         wandb.finish()
 
+def dataGenerator_tokenized(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None):
+    """
+    Reads the csv file line by line so that the
+    :param targets_idx: Index of target column
+    :param inputs_idx: Index of input column
+    :param file_path:
+    :return:
+    """
+    dataGen = dataGenerator_preprocessed(file_path, inputs_idx, targets_idx, key_word_idx)
+    for input_s, target_s in dataGen:
+        if decoderOnly:
+            contexts, targets = tokenizer.tokenize(input_s, frame=False, max_length=-1)[0], \
+                tokenizer.tokenize(target_s, frame=False, max_length=-1)[0]
+            # Concatenate along axis 1
+            contexts = contexts[:context_max_length]  # Truncate to max length
+            targets = targets[:target_max_length]  # Truncate to max length
+            concatenatedData = [tokenizer.START] + contexts + [tokenizer.TITLE] + targets + [tokenizer.END]
+            max_len = context_max_length + target_max_length + 1
+            concatenatedData += [tokenizer.PAD] * (max_len - len(concatenatedData))  # Pad to max length
+            concatenatedData = concatenatedData[:max_len]
+            model_input = concatenatedData[:-1]
+            model_ouptput = concatenatedData[1:]
 
-import csv
+            yield model_input, model_ouptput
+        else:
+            yield tokenizer.tokenize(input_s, frame=True, max_length=context_max_length)[0], \
+                tokenizer.tokenize(target_s, frame=True, max_length=target_max_length)[0]
+
+def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None):
+    """
+    Reads the csv file line by line so that the
+    :param targets_idx: Index of target column
+    :param inputs_idx: Index of input column
+    :param file_path:
+    :return:
+    """
+    if not key_word_idx:
+        key_word_idx = inputs_idx
+    while True:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            reader = csv.reader(f, delimiter=",")
+            _ = reader.__next__()
+            for i, line in enumerate(reader):
+                try:
+                    input_s = line[inputs_idx]
+                    target_s = line[targets_idx]
+                    p_input_s = preprocessing(input_s)
+                    p_target_s = preprocessing(target_s)
+                    if key_word_idx != inputs_idx:
+                        p_input_s = p_input_s + " | " + line[key_word_idx]
+                    if len(p_input_s.split()) < context_min_length or len(
+                            p_target_s.split()) < target_min_length:
+                        continue
+                    yield p_input_s, p_target_s
+                except Exception as e:
+                    print(e, input_idx, targets_idx, line[0])
+                    continue
 
 if __name__ == '__main__':
     # Data loading
@@ -203,7 +256,6 @@ if __name__ == '__main__':
             "context_max_length"]
         distill_model_params["return_attention_scores"] = False
         teacher_model = init_model(distill_model_params["model_type"], distill_model_params)
-        # teacher_model.summary()
         teacher_model.load_weights(os.path.join(distillation_model_path, "modelCheckpoint.weights.h5"))
 
     nEvaluationSamples = train_params["nEvaluationSamples"]
@@ -218,47 +270,9 @@ if __name__ == '__main__':
     # Mask to discard [UNK] tokens and padding tokens
     model_settings = json.load(open(train_params["model_params_path"]))
     decoderOnly = train_params["model_type"] == "TransformerDecoderOnly"
-    vocab_exists = os.path.isfile(train_params["tokenizer_vocab_path"])
 
-    import re
 
-    # train_df = pd.read_csv(path_train,
-    #                        usecols=["Unnamed: 0"])
-    def dataGenerator_preprocessed(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None,
-                                   train: bool = True):
-        """
-        Reads the csv file line by line so that the
-        :param targets_idx: Index of target column
-        :param inputs_idx: Index of input column
-        :param file_path:
-        :return:
-        """
-        if not key_word_idx:
-            key_word_idx = inputs_idx
-        while True:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.reader(f, delimiter=",")
-                _ = reader.__next__()
-                for i, line in enumerate(reader):
-                    try:
-                        # if train and int(line[0]) not in valid_indeces:
-                        #     continue
 
-                        input_s = line[inputs_idx]
-                        target_s = line[targets_idx]
-                        p_input_s = preprocessing(input_s)
-                        p_target_s = preprocessing(target_s)
-                        # p_input_s = input_s
-                        # p_target_s = target_s
-                        if key_word_idx != inputs_idx:
-                            p_input_s = p_input_s + " | " + line[key_word_idx]
-                        if len(p_input_s.split()) < context_min_length or len(
-                                p_target_s.split()) < target_min_length:
-                            continue
-                        yield p_input_s, p_target_s
-                    except Exception as e:
-                        print(e, input_idx, targets_idx, line[0])
-                        continue
 
 
     train_dataset = tf.data.Dataset.from_generator(
@@ -279,77 +293,25 @@ if __name__ == '__main__':
         val_context.append(sample[0])
         val_reference.append(sample[1])
 
-    if train_params["tokenizer"] == "bert":
-        if not vocab_exists:
-            print("No existing vocabulary found. Create new one.")
-            TokenizerBert.train(train_dataset, file_path=train_params["tokenizer_vocab_path"],
-                                vocab_size=vocab_size)
-        tokenizer = TokenizerBert(train_params["tokenizer_vocab_path"])
-    elif train_params["tokenizer"] == "word":
-        if not vocab_exists:
-            train_dataset = train_dataset.repeat()
-            TokenizerWord.train(
-                [title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
-                file_path=train_params["tokenizer_vocab_path"],
-                vocab_size=vocab_size)
-        tokenizer = TokenizerWord(train_params["tokenizer_vocab_path"], target_max_length)
-    elif train_params["tokenizer"] == "huggingFace":
-        if not vocab_exists:
-            train_dataset = train_dataset.repeat()
-            TokenizerBertHuggingFace.train(
-                [title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
-                file_path=train_params["tokenizer_vocab_path"])
-        tokenizer = TokenizerBertHuggingFace(train_params["tokenizer_vocab_path"])
+    tokenizer = TokenizerBertHuggingFace(train_params["tokenizer_vocab_path"])
 
-        def dataGenerator_tokenized(file_path, inputs_idx: int = 2, targets_idx: int = 1, key_word_idx: int = None):
-            """
-            Reads the csv file line by line so that the
-            :param targets_idx: Index of target column
-            :param inputs_idx: Index of input column
-            :param file_path:
-            :return:
-            """
-            dataGen = dataGenerator_preprocessed(file_path, inputs_idx, targets_idx, key_word_idx)
-            for input_s, target_s in dataGen:
-                if decoderOnly:
-                    contexts, targets = tokenizer.tokenize(input_s, frame=False, max_length=-1)[0], \
-                        tokenizer.tokenize(target_s, frame=False, max_length=-1)[0]
-                    # Concatenate along axis 1
-                    contexts = contexts[:context_max_length]  # Truncate to max length
-                    targets = targets[:target_max_length]  # Truncate to max length
-                    concatenatedData = [tokenizer.START] + contexts + [tokenizer.TITLE] + targets + [tokenizer.END]
-                    max_len = context_max_length + target_max_length + 1
-                    concatenatedData += [tokenizer.PAD] * (max_len - len(concatenatedData))  # Pad to max length
-                    concatenatedData = concatenatedData[:max_len]
-                    model_input = concatenatedData[:-1]
-                    model_ouptput = concatenatedData[1:]
+    c_max_len = context_max_length + target_max_length if decoderOnly else context_max_length
+    t_max_len = c_max_len if decoderOnly else target_max_length
 
-                    yield model_input, model_ouptput
-                else:
-                    yield tokenizer.tokenize(input_s, frame=True, max_length=context_max_length)[0], \
-                        tokenizer.tokenize(target_s, frame=True, max_length=target_max_length)[0]
-
-        c_max_len = context_max_length+target_max_length if decoderOnly else context_max_length
-        t_max_len = c_max_len if decoderOnly else target_max_length
-
-        train_dataset = tf.data.Dataset.from_generator(
-            dataGenerator_tokenized,
-            output_signature=(tf.TensorSpec(shape=c_max_len, dtype=tf.int32),
-                              tf.TensorSpec(shape=t_max_len, dtype=tf.int32)),
-            args=(path_train, input_idx, label_idx, key_word_idx)
-        )
-        val_dataset = tf.data.Dataset.from_generator(
-            dataGenerator_tokenized,
-            output_signature=(tf.TensorSpec(shape=c_max_len, dtype=tf.int32),
-                              tf.TensorSpec(shape=t_max_len, dtype=tf.int32)),
-            args=(path_val, input_idx, label_idx, key_word_idx)
-        )
-    else:
-        raise KeyError
-
+    train_dataset = tf.data.Dataset.from_generator(
+        dataGenerator_tokenized,
+        output_signature=(tf.TensorSpec(shape=c_max_len, dtype=tf.int32),
+                          tf.TensorSpec(shape=t_max_len, dtype=tf.int32)),
+        args=(path_train, input_idx, label_idx, key_word_idx)
+    )
+    val_dataset = tf.data.Dataset.from_generator(
+        dataGenerator_tokenized,
+        output_signature=(tf.TensorSpec(shape=c_max_len, dtype=tf.int32),
+                          tf.TensorSpec(shape=t_max_len, dtype=tf.int32)),
+        args=(path_val, input_idx, label_idx, key_word_idx)
+    )
 
     # Preprocessing train and validation datasets
-
     @tf.function
     def tokenization(contexts, targets):
         # dynamic tokenizer

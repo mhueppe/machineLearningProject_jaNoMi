@@ -228,7 +228,7 @@ class TokenizerWord(Tokenizer):
     Implement the bert tokenizer
     """
 
-    def __init__(self, vocab_path: str, max_length: int == 250):
+    def __init__(self, vocab_path: str, max_length: int = 250):
         # Load vocabulary from file
         with open(vocab_path, "r") as f:
             self.vocab = [line.strip() for line in f]
@@ -281,25 +281,54 @@ class TokenizerWord(Tokenizer):
         return self.prettify(" ".join(self.vocab[0, 1:]))
 
 
-if __name__ == '__main__':
-    # Configure logging to print INFO messages to the console
-    logging.basicConfig(
-        level=logging.INFO,  # Set the threshold level to INFO
-        format="%(asctime)s - %(levelname)s - %(message)s",  # Add timestamps and levels
-    )
-    import json
-    import pandas as pd
+def train_tokenizer(tokenizer_type, train_dataset, vocab_path, vocab_size) -> Tokenizer:
+    """
+    Train a new tokenzier
+    :param tokenizer_type: Which tokenizer type to use
+    :param train_dataset: Which dataset to train on
+    :param vocab_path: Where to save the vocabulary for future easy loading
+    :param vocab_size: How large the vocabulary should be
 
-    df = pd.read_csv(
-        "/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/arxiv-metadata-oai-snapshot.csv")
-    abstracts = df["abstract"].values
-    titles = df["title"].values
-    logging.info("Read data")
+    :returns Tokenizer
+    """
+    if tokenizer_type == "bert":
+        TokenizerBert.train(train_dataset,
+                            file_path=vocab_path,
+                            vocab_size=vocab_size)
+        return TokenizerBert(vocab_path)
+    elif tokenizer_type == "word":
+        train_dataset = train_dataset.repeat()
+        TokenizerWord.train(
+            [title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
+            file_path=vocab_path,
+            vocab_size=vocab_size)
+        return TokenizerWord(vocab_path)
+    elif tokenizer_type == "huggingFace":
+        train_dataset = train_dataset.repeat()
+        TokenizerBertHuggingFace.train(
+            [title + abstract for title, abstract in train_dataset.take(100_000).as_numpy_iterator()],
+            file_path=vocab_path,
+            vocab_size=vocab_size)
+        return TokenizerBertHuggingFace(vocab_path)
 
-    vocab_size = 8000
+    else:
+        raise KeyError
 
-    logging.info("Data filtered")
-    file_path = TokenizerBert.train(abstracts + titles,
-                                    file_path=r"arxiv_vocab_full.txt",
-                                    vocab_size=vocab_size)
-    logging.info(f"Vocabulary of size {vocab_size} was saved under {file_path}")
+
+def load_tokenizer(tokenizer_type, vocab_path):
+    """
+    Load the tokenizier based on the path and type
+    :param tokenizer_type: Type of tokenizer to load
+    :param vocab_path: Vocabulary path to laod in the tokenizer
+    """
+    if not os.path.isfile(vocab_path):
+        raise FileNotFoundError("No vocabulary found. Please train one.")
+    if tokenizer_type == "bert":
+        return TokenizerBert(vocab_path)
+    elif tokenizer_type == "word":
+        return TokenizerWord(vocab_path)
+    elif tokenizer_type == "huggingFace":
+        return TokenizerBertHuggingFace(vocab_path)
+    else:
+        raise KeyError
+

@@ -191,8 +191,8 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
 
-    model_name = "01_15_2025__17_41_21"
-    model_path = fr"..\..\trained_models\Transformer\{model_name}"
+    model_name = "03_13_2025__15_19_56"
+    model_path = fr"..\..\data\trained_models\Transformer\{model_name}"
     train_params = json.load(open(os.path.join(model_path, "modelInfo.json")))
     model_params = train_params["model_parameters"]
     target_max_length, context_max_length = model_params["target_max_length"], model_params["context_max_length"]
@@ -201,7 +201,7 @@ if __name__ == '__main__':
     model.summary()
     model.load_weights(os.path.join(model_path, "modelCheckpoint.weights.h5"))
     # Train tokenizer
-    vocab_path = r"..\..\arxiv_vocab_8000.json"
+    vocab_path = r"..\..\dataarxiv_vocab_8000.json"
     # Initialize tokenizer
     tokenizer = TokenizerBertHuggingFace(vocab_path)
     titleGenerator = GenerateSummary(model, tokenizer, target_max_length, context_max_length)

@@ -3,20 +3,18 @@
 # project: /interface.py
 # built-in
 from typing import Callable
+
 import numpy as np
 from PySide6 import QtCore
+# external
+from PySide6.QtWidgets import QWidget, QMessageBox
 
 from resources.evaluation.attention_evaluation import generate_heatmap_text
-# local
-from .src.interface import Ui_Form
-
-# external
-from PySide6.QtWidgets import QWidget, QTextBrowser, QVBoxLayout, QListWidgetItem, QMessageBox
 from resources.model_types import ModelTypes
 from resources.preprocessing.dataPreprocessing import preprocessing
 from resources.preprocessing.tokenizer import Tokenizer
-from PySide6.QtWidgets import QApplication, QListWidget, QListWidgetItem, QLabel, QStyledItemDelegate
-from PySide6.QtCore import Qt
+# local
+from .src.interface import Ui_Form
 
 
 class Worker(QtCore.QThread):
