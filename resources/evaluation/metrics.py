@@ -1,10 +1,9 @@
 # author: Michael Hüppe
 # date: 28.10.2024
 # project: resources/evaluation.py
-import numpy as np
 
 from nltk.translate.bleu_score import sentence_bleu
-from rouge_score import rouge_scorer
+from rouge_scorer import rouge_scorer
 from collections import Counter
 import numpy as np
 
@@ -14,7 +13,7 @@ def calculate_perplexity(userInput: str, model):
     Calculate the perplexity of a given sentence based on the probabilities from a language model.
     :param userInput: The input sentence (string).
     :param model: Model (string).
-    :return: The perplexity (float) see: https://huggingface.co/docs/transformers/perplexity
+    :return: The perplexity (float)
     """
     # Get the probabilities from the language model
     probabilities = model.generateOutput_probabilities(userInput)
@@ -27,7 +26,6 @@ def calculate_perplexity(userInput: str, model):
     # Calculate perplexity
     perplexity = np.exp(np.mean(log_probs))
     return perplexity
-
 
 
 def compute_bleu(reference, hypothesis):
@@ -91,12 +89,3 @@ def compute_repeated_words(hypothesis):
     token_counts = Counter(tokens)
     num_repeated = sum(count - 1 for count in token_counts.values() if count > 1)
     return num_repeated / len(tokens) if tokens else 0.0
-
-
-def calculate_bertscore(reference, hypothesis):
-    # Compute the BERTScore
-    import bert_score
-    hypothesis = hypothesis if isinstance(hypothesis, list) else [hypothesis]
-    reference = reference if isinstance(reference, list) else [reference]
-    P, R, F1 = bert_score.score(hypothesis, reference, lang="en")
-    return P.numpy().mean(), R.numpy().mean(), F1.numpy().mean()

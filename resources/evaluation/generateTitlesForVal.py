@@ -1,21 +1,18 @@
 # author: Michael Hüppe
 # date: 25.01.2025
 # project: resources/evaluation/generateTitlesForVal.py
-
+import json
 import os
 
-import h5py
 import pandas as pd
-import json
-import os
-import json
+
 from resources.createModel import init_model
-from resources.preprocessing.tokenizer import TokenizerBertHuggingFace
 from resources.inference.generateSummary import GenerateSummary
+from resources.preprocessing.tokenizer import TokenizerBertHuggingFace
 from resources.training.transformer.transformer import Transformer
 
 
-def process_models(model_names, data_path, output_path, n = 10):
+def process_models(model_names, data_path, output_path, n=10):
     """
     Generates titles for each abstract in val_data.csv using a list of models and saves the updated dataset.
 
@@ -57,9 +54,6 @@ def process_models(model_names, data_path, output_path, n = 10):
                 model_params["feed_forward_cropped"] = True
                 model = init_model(Transformer, model_params)
 
-            with h5py.File(os.path.join(model_path, "modelCheckpoint.weights.h5"), "r") as f:
-                print(list(f.keys()))  # List of stored layers
-
             model.summary()
             model.load_weights(os.path.join(model_path, "modelCheckpoint.weights.h5"))
 
@@ -93,12 +87,14 @@ def process_models(model_names, data_path, output_path, n = 10):
 
 # Example usage
 if __name__ == "__main__":
-    # Define model names
-    #model_names = ["03_13_2025__15_14_32", "03_13_2025__15_15_10", "03_13_2025__15_15_52", "03_13_2025__15_16_52", "03_13_2025__15_17_23", "03_13_2025__15_18_08", "03_13_2025__15_18_50", "03_13_2025__15_19_56"] # vocab
-    model_names = ["03_13_2025__09_49_19", "03_13_2025__09_48_48", "03_13_2025__09_48_03", "03_13_2025__09_46_47", "03_13_2025__09_44_27", "03_13_2025__09_42_24"] # ultimate
+    # Define model names model_names = ["03_13_2025__15_14_32", "03_13_2025__15_15_10", "03_13_2025__15_15_52",
+    # "03_13_2025__15_16_52", "03_13_2025__15_17_23", "03_13_2025__15_18_08", "03_13_2025__15_18_50",
+    # "03_13_2025__15_19_56"] # vocab
+    model_names = ["03_13_2025__09_49_19", '03_13_2025__09_48_48', "03_13_2025__09_48_03", "03_13_2025__09_46_47",
+                   "03_13_2025__09_44_27", "03_13_2025__09_42_24"]  # ultimate
 
     # Paths
-    data_path = r"/informatik1/students/home/3hueppe/Documents/machineLearningProject_jaNoMi/data/arxiv_data_test.csv"  # Path to the input CSV file
+    data_path = r"../../../data/arxiv_data_test.csv"  # Path to the input CSV file
     output_path = data_path.replace(".csv", "_results_ultimate.csv")  # Output CSV file path
 
     # Process models and generate titles
