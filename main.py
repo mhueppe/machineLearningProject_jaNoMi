@@ -9,7 +9,8 @@ import resources
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtGui import QIcon
 
-class MainApplication(QMainWindow):
+
+class Headliner(QMainWindow):
     """
     Main Application class that uses Interface as the central widget.
     Includes internal methods for application logic.
@@ -61,6 +62,7 @@ stylesheet = """
     }
 """
 
+
 def main():
     """Main entry point for the application."""
     import sys
@@ -71,16 +73,13 @@ def main():
     icon_path = "gui/media/UHH_Universitaet_Hamburg_Logo.png"  # Provide the correct path to your PNG image
     # app.setStyle("Fusion")
     app.setWindowIcon(QIcon(icon_path))
-    main_window = MainApplication()
+    main_window = Headliner()
     main_window.show()
     sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
-    # installed_modules = pkgutil.iter_modules()
-    # for module in installed_modules:
-    #     print(module.name)
     main()
     # packaging command
-    #pyinstaller -p "." --hidden-import gui --hidden-import resources --name Headliner --onefile --windowed --add-data "gui/media/UHH_Universitaet_Hamburg_Logo.png;gui/media" --add-data "vocabs;vocabs" --add-data "trained_models/Transformer/03_13_2025__15_19_56;trained_models/Transformer/03_13_2025__15_19_56" --add-data "trained_models/Transformer/03_13_2025__09_48_03;trained_models/Transformer/03_13_2025__09_48_03" --add-data "trained_models/TransformerDecoderOnly/03_14_2025__18_42_32;trained_models/TransformerDecoderOnly/03_14_2025__18_42_32" .\main.py
-    #pyinstaller -p "." --hidden-import gui --hidden-import resources --name Headliner --add-data "gui/media/UHH_Universitaet_Hamburg_Logo.png;gui/media" --add-data "vocabs;vocabs" --add-data "trained_models/Transformer/03_13_2025__15_19_56;trained_models/Transformer/03_13_2025__15_19_56" --add-data "trained_models/Transformer/03_13_2025__09_48_03;trained_models/Transformer/03_13_2025__09_48_03" --add-data "trained_models/TransformerDecoderOnly/03_14_2025__18_42_32;trained_models/TransformerDecoderOnly/03_14_2025__18_42_32" .\main.py
+    # pyinstaller -p "." --hidden-import gui --hidden-import resources --name Headliner --onefile --windowed --add-data "gui/media/UHH_Universitaet_Hamburg_Logo.png;gui/media" --add-data "vocabs;vocabs" --add-data "trained_models/Transformer/03_13_2025__15_19_56;trained_models/Transformer/03_13_2025__15_19_56" --add-data "trained_models/Transformer/03_13_2025__09_48_03;trained_models/Transformer/03_13_2025__09_48_03" --add-data "trained_models/TransformerDecoderOnly/03_14_2025__18_42_32;trained_models/TransformerDecoderOnly/03_14_2025__18_42_32" .\main.py
+    # pyinstaller -p "." --hidden-import gui --hidden-import resources --name Headliner --add-data "gui/media/UHH_Universitaet_Hamburg_Logo.png;gui/media" --add-data "vocabs;vocabs" --add-data "trained_models/Transformer/03_13_2025__15_19_56;trained_models/Transformer/03_13_2025__15_19_56" --add-data "trained_models/Transformer/03_13_2025__09_48_03;trained_models/Transformer/03_13_2025__09_48_03" --add-data "trained_models/TransformerDecoderOnly/03_14_2025__18_42_32;trained_models/TransformerDecoderOnly/03_14_2025__18_42_32" .\main.py

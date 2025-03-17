@@ -1,16 +1,13 @@
-import json
-import os
-
-import numpy as np
+# author: Michael Hüppe
+# date: 28.10.2024
+# project: resources/createModel.py
 import tensorflow as tf
 
 from resources.training.trainingUtils import CustomSchedule, masked_loss, masked_accuracy, \
-    masked_loss_decoder_only,\
-    masked_accuracy_decoder_only, distillation_loss
+    masked_loss_decoder_only, \
+    masked_accuracy_decoder_only
 from resources.training.transformer.transformer import Transformer
 from resources.training.transformer.transformer_decoder_only import TransformerDecoderOnly
-from resources.training.rnn.rnn import RNN
-# from resources.preprocessing.dataPreprocessing import preprocessing
 
 
 def init_model(Model, params, compile=True):
@@ -22,7 +19,6 @@ def init_model(Model, params, compile=True):
     tf.keras.backend.clear_session()  # Clearing Keras memory
     tf.random.set_seed(params.get("SEED", 69))  # For reproducibility
 
-    # TODO: describe the parameters and softcode
     learning_rate = CustomSchedule(params["embedding_dim"])
     optimizer = tf.keras.optimizers.Adam(
         learning_rate,
@@ -38,8 +34,6 @@ def init_model(Model, params, compile=True):
             Model = Transformer
         if Model == "TransformerDecoderOnly":
             Model = TransformerDecoderOnly
-        elif Model == "RNN":
-            Model = RNN
         else:
             raise KeyError
 

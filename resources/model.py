@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 from typing import List, Callable
 
-from utils.util_readingData import load_data
 from .createModel import init_model
 from resources.inference.generateSummary import GenerateSummary
 from .preprocessing.tokenizer import TokenizerBertHuggingFace
@@ -27,11 +26,11 @@ class JaNoMiModel:
 
     def __init__(self):
         # Initialize TF-IDF Vectorizer
-        path = r".\trained_models\Transformer"
+        path = r".\data\trained_models\Transformer"
         self.medi = self._load_model(os.path.join(path, "03_13_2025__15_19_56"))
         self.medi.model.summary()
         self.maxi = self._load_model(os.path.join(path, "03_13_2025__09_48_03"))
-        path = r".\trained_models\TransformerDecoderOnly"
+        path = r".\data\trained_models\TransformerDecoderOnly"
         self.decoder_only = self._load_model(os.path.join(path, "03_14_2025__18_42_32"))
         self._models = {
             ModelTypes.Medi: self.medi,
@@ -50,7 +49,7 @@ class JaNoMiModel:
         params["return_attention_scores"] = True
         vocab_path = params["tokenizer_vocab_path"]
         if not os.path.isfile(vocab_path):
-            vocab_path = os.path.join(".", "vocabs", Path(params["tokenizer_vocab_path"]).name)
+            vocab_path = os.path.join(".", "data", "vocabs", Path(params["tokenizer_vocab_path"]).name)
             if not os.path.isfile(vocab_path):
                 raise FileNotFoundError("Please make sure that the vocab path the model was trained with is available")
         tokenizer = TokenizerBertHuggingFace(vocab_path)
